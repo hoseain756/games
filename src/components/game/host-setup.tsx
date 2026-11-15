@@ -102,15 +102,15 @@ export function HostSetup({
   return (
     <div className="flex flex-1 flex-col gap-4 pt-4">
       <Tabs defaultValue="questions" className="gap-4">
-        <TabsList className="grid w-full grid-cols-2 rounded-2xl p-1">
-          <TabsTrigger value="questions" className="gap-2 rounded-xl py-2.5 font-bold">
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl p-1">
+          <TabsTrigger value="questions" className="h-auto gap-2 rounded-xl py-2.5 font-bold">
             <MessageCircleQuestion className="size-4" aria-hidden="true" />
             الأسئلة
             <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
               {questions.length}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="options" className="gap-2 rounded-xl py-2.5 font-bold">
+          <TabsTrigger value="options" className="h-auto gap-2 rounded-xl py-2.5 font-bold">
             <Settings2 className="size-4" aria-hidden="true" />
             الإعدادات
           </TabsTrigger>
