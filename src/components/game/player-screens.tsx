@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import {
+  ArrowLeft,
   EyeOff,
   Loader2,
   Mic,
@@ -10,6 +12,7 @@ import {
   Users,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { PlayerAvatar } from '@/components/game/avatar'
 import { ProgressDots } from '@/components/game/dots'
 import type { PublicPlayer, TurnState } from '@/lib/game-types'
@@ -71,13 +74,27 @@ export function PlayerPlay({
   myName,
   mySelfie,
   myQuestion,
+  onNext,
 }: {
   turn: TurnState
   isMyTurn: boolean
   myName: string
   mySelfie: string
   myQuestion: string | null
+  onNext: () => void
 }) {
+  // Two-tap confirm so an accidental tap never skips someone's turn.
+  // Resets automatically on turn change because page.tsx remounts this
+  // component with a new key for every round/turn.
+  const [confirming, setConfirming] = useState(false)
+
+  // Auto-cancel the confirm if the player hesitates.
+  useEffect(() => {
+    if (!confirming) return
+    const timer = window.setTimeout(() => setConfirming(false), 3000)
+    return () => window.clearTimeout(timer)
+  }, [confirming])
+
   const current = turn.currentPlayer
   if (!current) return null
 
@@ -117,6 +134,18 @@ export function PlayerPlay({
             <Mic className="size-4" aria-hidden="true" />
             جاوب بصوت عالٍ وشارك الجميع إجابتك
           </p>
+          <Button
+            onClick={() => (confirming ? onNext() : setConfirming(true))}
+            disabled={!myQuestion}
+            variant={confirming ? 'destructive' : 'default'}
+            className="btn-press h-14 w-full gap-2 rounded-2xl text-base font-extrabold"
+          >
+            <ArrowLeft className="size-5 shrink-0" aria-hidden="true" />
+            {confirming ? 'متأكد؟ اضغط مرة ثانية' : 'التالي'}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {confirming ? 'بينتقل الدور للاعب اللي بعده' : 'خلصت إجابتك؟ انتقل للاعب التالي'}
+          </p>
         </div>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-5 py-6 text-center">
@@ -131,7 +160,7 @@ export function PlayerPlay({
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
             <EyeOff className="size-3.5" aria-hidden="true" />
-            استنى دورك، والمضيف ينتقل للاعب التالي
+            استنى دورك، لما يخلص اللاعب الحالي ينتقل الدور
           </div>
         </div>
       )}

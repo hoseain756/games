@@ -400,6 +400,26 @@ export default function Home() {
     }
   }, [socket])
 
+  // ---- Safety net: never hang forever waiting for a room that may be gone --
+  // If the service is unreachable or the room expired without a reply, bail
+  // out of the "reconnecting" spinner after a short grace period.
+  useEffect(() => {
+    if (hostView !== 'reconnecting' && playerView !== 'reconnecting') return
+    const timer = window.setTimeout(() => {
+      if (hostViewRef.current === 'reconnecting') {
+        clearHostRoom()
+        setHostView('setup')
+        toastRef.current({ description: 'ما قدرنا نستعيد الغرفة، أنشئ غرفة جديدة' })
+      } else if (playerViewRef.current === 'reconnecting') {
+        clearIdentity()
+        identityRef.current = null
+        setPlayerView('join')
+        toastRef.current({ description: 'ما قدرنا نوصل للغرفة، حاول مرة ثانية' })
+      }
+    }, 8000)
+    return () => window.clearTimeout(timer)
+  }, [hostView, playerView])
+
   // ---- Host actions ---------------------------------------------------------
   const createRoom = useCallback(() => {
     if (!socket) return
@@ -433,6 +453,11 @@ export default function Home() {
 
   const endGame = useCallback(() => {
     socket?.emit('host:end')
+  }, [socket])
+
+  /** Player taps "التالي" on his own phone: pass the turn to the next player. */
+  const playerNextTurn = useCallback(() => {
+    socket?.emit('player:next')
   }, [socket])
 
   const closeRoom = useCallback(() => {
@@ -518,11 +543,13 @@ export default function Home() {
       case 'play':
         return turn ? (
           <PlayerPlay
+            key={`${turn.round}-${turn.turnNo}`}
             turn={turn}
             isMyTurn={turn.currentPlayer?.id === myId}
             myName={myName}
             mySelfie={mySelfie}
             myQuestion={myQuestion}
+            onNext={playerNextTurn}
           />
         ) : (
           <LoaderCard title="جاري تجهيز الدور..." />

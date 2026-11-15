@@ -480,10 +480,8 @@ function onHostStart(socket: Socket) {
   console.log(`[game-service] room ${room.code} started (${room.order.length} players)`)
 }
 
-function onHostNext(socket: Socket) {
-  const room = requireHost(socket)
-  if (!room) return
-  if (room.state !== 'playing') return
+/** Advance to the next player (wraps around and starts a new round). */
+function advanceTurn(room: Room) {
   room.idx++
   if (room.idx >= room.order.length) {
     room.idx = 0
@@ -493,6 +491,33 @@ function onHostNext(socket: Socket) {
   pickQuestion(room)
   io.to(room.code).emit('game:turn', turnPayload(room))
   sendQuestionToCurrentPlayer(room)
+}
+
+function onHostNext(socket: Socket) {
+  const room = requireHost(socket)
+  if (!room) return
+  if (room.state !== 'playing') return
+  advanceTurn(room)
+}
+
+/** The CURRENT player taps "next" on his own phone to pass the turn. */
+function onPlayerNext(socket: Socket) {
+  const info = socketRooms.get(socket.id)
+  if (!info || info.role !== 'player' || !info.playerId) return
+  const room = rooms.get(info.code)
+  if (!room) {
+    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+    return
+  }
+  if (room.state !== 'playing') return
+  // Only the player whose turn it is may advance the game.
+  if (room.order[room.idx] !== info.playerId) {
+    socket.emit('room:error', { message: MSG.UNAUTHORIZED })
+    return
+  }
+  const name = publicPlayerById(room, info.playerId)?.name ?? info.playerId
+  console.log(`[game-service] player "${name}" advanced the turn in room ${room.code}`)
+  advanceTurn(room)
 }
 
 function onHostReroll(socket: Socket) {
@@ -629,6 +654,7 @@ io.on('connection', (socket: Socket) => {
   listen(socket, 'player:leave', onPlayerLeave)
   listen(socket, 'host:start', onHostStart)
   listen(socket, 'host:next', onHostNext)
+  listen(socket, 'player:next', onPlayerNext)
   listen(socket, 'host:reroll', onHostReroll)
   listen(socket, 'host:peek', onHostPeek)
   listen(socket, 'host:hide', onHostHide)
