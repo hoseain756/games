@@ -19,6 +19,14 @@ import type { GameOptions } from '@/lib/game-types'
 
 const MAX_QUESTIONS = 500
 
+/** Arabic count phrases with correct number-noun agreement. */
+function readyCountLabel(n: number): string {
+  if (n === 1) return 'سؤال جاهز واحد'
+  if (n === 2) return 'سؤالين جاهزين'
+  if (n <= 10) return `${n} أسئلة جاهزة`
+  return `${n} سؤالاً جاهزاً`
+}
+
 const READY_QUESTIONS = [
   'ما آخر أغنية سمعتها وما تقدر توقف عن ترديدها؟',
   'لو تقدر تسافر لأي مكان بالعالم اليوم، وين تروح؟',
@@ -71,7 +79,7 @@ export function HostSetup({
     }
     if (added) onQuestionsChange(next)
     setDraft('')
-    if (duplicated) toast({ description: `${duplicated} سؤال مكرر تم تجاهله` })
+    if (duplicated) toast({ description: 'تم تجاهل الأسئلة المكررة' })
   }
 
   const addReadyPack = () => {
@@ -84,7 +92,7 @@ export function HostSetup({
       }
     }
     onQuestionsChange(next)
-    toast({ description: added ? `تمت إضافة ${added} أسئلة جاهزة` : 'الأسئلة الجاهزة موجودة أصلاً' })
+    toast({ description: added ? `تمت إضافة ${readyCountLabel(added)}` : 'الأسئلة الجاهزة موجودة أصلاً' })
   }
 
   const removeQuestion = (index: number) => {
@@ -142,28 +150,36 @@ export function HostSetup({
                 </div>
               ) : (
                 <>
-                  <ul className="scroll-thin flex max-h-72 flex-col gap-2 overflow-y-auto pe-1">
-                    {questions.map((question, index) => (
-                      <li
-                        key={`${question}-${index}`}
-                        className="animate-fadein flex items-center gap-2.5 rounded-2xl bg-background px-3 py-2.5"
-                      >
-                        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-secondary text-xs font-bold text-primary">
-                          {index + 1}
-                        </span>
-                        <span className="flex-1 break-words text-sm leading-relaxed">{question}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 shrink-0 rounded-lg text-muted-foreground hover:text-destructive"
-                          onClick={() => removeQuestion(index)}
-                          aria-label={`حذف السؤال ${index + 1}`}
+                  <div className="relative">
+                    <ul className="scroll-thin flex max-h-72 flex-col gap-2 overflow-y-auto pe-1">
+                      {questions.map((question, index) => (
+                        <li
+                          key={`${question}-${index}`}
+                          className="animate-fadein flex items-center gap-2.5 rounded-2xl bg-background px-3 py-2.5"
                         >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
+                          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-secondary text-xs font-bold text-primary">
+                            {index + 1}
+                          </span>
+                          <span className="flex-1 break-words text-sm leading-relaxed">{question}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-11 shrink-0 rounded-xl text-muted-foreground hover:text-destructive"
+                            onClick={() => removeQuestion(index)}
+                            aria-label={`حذف السؤال ${index + 1}`}
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                    {questions.length > 4 && (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-2xl bg-gradient-to-t from-card to-transparent"
+                      />
+                    )}
+                  </div>
                   <div className="flex justify-between gap-2">
                     <Button variant="ghost" size="sm" onClick={addReadyPack}>
                       <Sparkles className="size-4" aria-hidden="true" />

@@ -1,6 +1,8 @@
 'use client'
 
-const COLORS = ['#ea580c', '#0d9488', '#e11d48', '#7c3aed', '#16a34a', '#0284c7', '#d97706', '#db2777']
+// Warm palette matching the app brand (orange/amber) plus the teal and rose
+// chart accents for variety. No blues — they clash with the orange theme.
+const COLORS = ['#ea580c', '#d97706', '#c2410c', '#0d9488', '#b45309', '#e11d48', '#9a3412', '#57534e']
 
 function colorFor(name: string) {
   let hash = 0

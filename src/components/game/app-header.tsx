@@ -20,7 +20,7 @@ function ThemeToggle() {
     <Button
       variant="outline"
       size="icon"
-      className="size-10 rounded-xl"
+      className="size-11 rounded-xl"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       aria-label={isDark ? 'التبديل للمظهر الفاتح' : 'التبديل للمظهر الداكن'}
     >

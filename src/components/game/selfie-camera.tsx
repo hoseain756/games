@@ -112,9 +112,23 @@ export function SelfieCamera({
 
   return (
     <div className="space-y-3">
-      <div className="relative mx-auto aspect-square w-full max-w-[280px] overflow-hidden rounded-3xl border bg-secondary">
+      <div
+        className={`relative mx-auto w-full max-w-[280px] overflow-hidden rounded-3xl border bg-secondary ${
+          value || status !== 'denied' ? 'aspect-square' : 'min-h-40'
+        }`}
+      >
         {value ? (
           <img src={value} alt="صورتك" className="h-full w-full object-cover" />
+        ) : status === 'denied' ? (
+          <div className="grid h-full min-h-40 place-items-center gap-2 p-5 text-center">
+            <CameraOff className="size-7 text-muted-foreground" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-bold">ما قدرنا نفتح الكاميرا</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                تقدر تختار صورة من جهازك أو تكمل بدون صورة.
+              </p>
+            </div>
+          </div>
         ) : (
           <video
             ref={videoRef}
@@ -129,14 +143,6 @@ export function SelfieCamera({
           <div className="absolute inset-0 grid place-items-center gap-2 text-muted-foreground">
             <Loader2 className="size-6 animate-spin" aria-hidden="true" />
             <span className="text-sm">جاري تشغيل الكاميرا...</span>
-          </div>
-        )}
-
-        {status === 'denied' && !value && (
-          <div className="absolute inset-0 grid place-items-center gap-3 p-4 text-center">
-            <CameraOff className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
-            <p className="text-sm font-medium">ما قدرنا نفتح الكاميرا</p>
-            <p className="text-xs text-muted-foreground">تقدر تختار صورة من جهازك أو تكمل بدون صورة.</p>
           </div>
         )}
 
@@ -169,7 +175,7 @@ export function SelfieCamera({
             >
               <Camera className="size-6" aria-hidden="true" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Button variant="ghost" className="h-11 px-4" onClick={() => fileInputRef.current?.click()}>
               <ImagePlus className="size-4" aria-hidden="true" />
               من الجهاز
             </Button>

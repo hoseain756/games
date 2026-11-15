@@ -10,7 +10,6 @@ import {
   Users,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { PlayerAvatar } from '@/components/game/avatar'
 import { ProgressDots } from '@/components/game/dots'
 import type { PublicPlayer, TurnState } from '@/lib/game-types'
@@ -95,11 +94,9 @@ export function PlayerPlay({
       {isMyTurn ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2 text-center">
           <PlayerAvatar player={{ name: myName, selfie: mySelfie }} size={72} className="animate-pop" />
-          <div className="space-y-1">
-            <Badge className="brand-gradient gap-1.5 border-0 text-primary-foreground shadow-brand">
-              <PartyPopper className="size-3.5" aria-hidden="true" />
-              جاء دورك يا {myName}
-            </Badge>
+          <div className="brand-gradient shadow-brand animate-pop flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-lg font-extrabold text-primary-foreground">
+            <PartyPopper className="size-5 shrink-0" aria-hidden="true" />
+            <span className="truncate">جاء دورك يا {myName}</span>
           </div>
           <div className="relative w-full overflow-hidden rounded-3xl border bg-card shadow-brand">
             <div className="brand-gradient h-1.5 w-full" aria-hidden="true" />

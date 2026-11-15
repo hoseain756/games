@@ -116,30 +116,38 @@ export function HostLobby({
               <p className="text-sm text-muted-foreground">بانتظار اللاعبين... شارك الرمز معهم</p>
             </div>
           ) : (
-            <ul className="scroll-thin grid max-h-60 grid-cols-2 gap-2.5 overflow-y-auto pe-1 sm:grid-cols-3">
-              {players.map(player => (
-                <li
-                  key={player.id}
-                  className="animate-fadein flex items-center gap-2 rounded-2xl bg-background p-2.5"
-                >
-                  <span className="relative shrink-0">
-                    <PlayerAvatar player={player} size={40} />
-                    <span
-                      className={`absolute -bottom-0.5 -end-0.5 size-3 rounded-full border-2 border-card ${
-                        player.connected ? 'bg-emerald-500' : 'bg-muted-foreground'
-                      }`}
-                      title={player.connected ? 'متصل' : 'غير متصل'}
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold">{player.name}</span>
-                    {!player.connected && (
-                      <span className="block text-[10px] text-muted-foreground">غير متصل</span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="relative">
+              <ul className="scroll-thin grid max-h-60 grid-cols-2 gap-2.5 overflow-y-auto pe-1 sm:grid-cols-3">
+                {players.map(player => (
+                  <li
+                    key={player.id}
+                    className="animate-fadein flex items-center gap-2 rounded-2xl bg-background p-2.5"
+                  >
+                    <span className="relative shrink-0">
+                      <PlayerAvatar player={player} size={40} />
+                      <span
+                        className={`absolute -bottom-0.5 -end-0.5 size-3 rounded-full border-2 border-card ${
+                          player.connected ? 'bg-emerald-500' : 'bg-muted-foreground'
+                        }`}
+                        title={player.connected ? 'متصل' : 'غير متصل'}
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold">{player.name}</span>
+                      {!player.connected && (
+                        <span className="block text-[10px] text-muted-foreground">غير متصل</span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {players.length > 6 && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-2xl bg-gradient-to-t from-card to-transparent"
+                />
+              )}
+            </div>
           )}
           {players.length < 2 && (
             <p className="mt-3 text-center text-xs text-muted-foreground">
