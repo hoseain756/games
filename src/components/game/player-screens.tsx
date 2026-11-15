@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import {
   ArrowLeft,
+  CheckCircle2,
   EyeOff,
   Loader2,
   Mic,
   PartyPopper,
+  PenLine,
   Smartphone,
   Trophy,
   Users,
@@ -26,17 +28,20 @@ export function PlayerWait({
   selfie: string
   players: PublicPlayer[]
 }) {
+  const readyCount = players.filter(p => p.ready).length
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-5 py-10 text-center">
       <PlayerAvatar player={{ name, selfie }} size={96} className="animate-pop" />
       <div className="space-y-1">
-        <h2 className="text-2xl font-extrabold">أهلاً {name}!</h2>
-        <p className="text-muted-foreground">تم الانضمام، استنى المضيف يبدأ اللعبة</p>
+        <h2 className="flex items-center justify-center gap-2 text-2xl font-extrabold">
+          <CheckCircle2 className="size-6 text-emerald-500" aria-hidden="true" />
+          وصلت أسئلتك يا {name}!
+        </h2>
+        <p className="text-muted-foreground">ننتظر باقي اللاعبين يخلصون من كتابة أسئلتهم</p>
       </div>
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-        بانتظار بدء المضيف
-      </div>
+      <p className="text-sm font-bold text-primary" aria-live="polite">
+        جاهزون: {readyCount} من {players.length}
+      </p>
       {players.length > 0 && (
         <Card className="w-full">
           <CardContent className="space-y-3 p-4">
@@ -49,11 +54,11 @@ export function PlayerWait({
                 <div key={player.id} className="flex w-16 flex-col items-center gap-1">
                   <span className="relative">
                     <PlayerAvatar player={player} size={44} />
-                    <span
-                      className={`absolute -bottom-0.5 -end-0.5 size-3 rounded-full border-2 border-card ${
-                        player.connected ? 'bg-emerald-500' : 'bg-muted-foreground'
-                      }`}
-                    />
+                    {player.ready && (
+                      <span className="absolute -bottom-1 -end-1 grid size-4.5 place-items-center rounded-full border-2 border-card bg-emerald-500 text-white">
+                        <CheckCircle2 className="size-3" aria-hidden="true" />
+                      </span>
+                    )}
                   </span>
                   <span className="w-full truncate text-center text-[11px] font-medium">
                     {player.name}
@@ -64,6 +69,10 @@ export function PlayerWait({
           </CardContent>
         </Card>
       )}
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        تبدأ الجولة تلقائياً لما يجهز الجميع
+      </p>
     </div>
   )
 }
@@ -168,20 +177,30 @@ export function PlayerPlay({
   )
 }
 
-export function PlayerEnd({ players }: { players: PublicPlayer[] }) {
+export function PlayerEnd({
+  players,
+  onNewRound,
+}: {
+  players: PublicPlayer[]
+  onNewRound: () => void
+}) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
       <span className="brand-gradient shadow-brand grid size-20 place-items-center rounded-full text-primary-foreground">
         <Trophy className="size-9" aria-hidden="true" />
       </span>
-      <h2 className="text-3xl font-extrabold">انتهت اللعبة!</h2>
+      <h2 className="text-3xl font-extrabold">انتهت الجولة!</h2>
       <p className="flex items-center gap-2 text-muted-foreground">
         <PartyPopper className="size-4" aria-hidden="true" />
         شكراً للعب، كان وقت ممتع
       </p>
-      <p className="text-sm text-muted-foreground/80">
-        إذا المضيف بدأ جولة جديدة بتنقل تلقائياً لشاشة اللعب
-      </p>
+      <Button
+        onClick={onNewRound}
+        className="brand-gradient shadow-brand btn-press h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
+      >
+        <PenLine className="size-5" aria-hidden="true" />
+        اكتب أسئلتك للجولة الجديدة
+      </Button>
       {players.length > 0 && (
         <div className="mt-2 flex flex-wrap items-end justify-center gap-3">
           {players.map(player => (

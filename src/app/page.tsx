@@ -8,6 +8,7 @@ import { HostSetup } from '@/components/game/host-setup'
 import { HostLobby } from '@/components/game/host-lobby'
 import { HostGame } from '@/components/game/host-game'
 import { PlayerJoin } from '@/components/game/player-join'
+import { PlayerQuestions } from '@/components/game/player-questions'
 import { PlayerEnd, PlayerPlay, PlayerWait } from '@/components/game/player-screens'
 import { ErrorState } from '@/components/game/error-state'
 import { useGameSocket } from '@/hooks/use-game-socket'
@@ -25,10 +26,10 @@ import {
   getPlayerId,
   loadHostRoom,
   loadIdentity,
-  loadSetup,
+  loadOpts,
   saveHostRoom,
   saveIdentity,
-  saveSetup,
+  saveOpts,
   type StoredIdentity,
 } from '@/lib/game-storage'
 
@@ -57,6 +58,7 @@ function parsePlayers(value: unknown): PublicPlayer[] {
       name: item.name as string,
       selfie: typeof item.selfie === 'string' ? item.selfie : '',
       connected: item.connected !== false,
+      ready: item.ready === true,
     }))
 }
 
@@ -90,12 +92,12 @@ export default function Home() {
   const [playerView, setPlayerView] = useState<PlayerView>('join')
 
   // Host state
-  const [questions, setQuestions] = useState<string[]>([])
   const [opts, setOpts] = useState<GameOptions>({ norepeat: true, shuffle: false })
   const [players, setPlayers] = useState<PublicPlayer[]>([])
   const [turn, setTurn] = useState<TurnState | null>(null)
   const [hostQuestion, setHostQuestion] = useState<string | null>(null)
   const [peeking, setPeeking] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   // Shared / player state
   const [roomCode, setRoomCode] = useState<string | null>(null)
@@ -126,24 +128,19 @@ export default function Home() {
     roomCodeRef.current = roomCode
   })
 
-  // Restore host draft (questions/options) after mount to avoid SSR mismatch.
+  // Restore host options after mount to avoid SSR mismatch.
   useEffect(() => {
     const id = window.setTimeout(() => {
-      const saved = loadSetup()
-      if (saved) {
-        setQuestions(saved.questions)
-        setOpts(saved.opts)
-      }
+      const saved = loadOpts()
+      if (saved) setOpts(saved)
     }, 0)
     return () => window.clearTimeout(id)
   }, [])
 
-  // Persist host setup locally.
+  // Persist host options locally.
   useEffect(() => {
-    if (questions.length || opts.norepeat || opts.shuffle) {
-      saveSetup({ questions, opts })
-    }
-  }, [questions, opts])
+    saveOpts(opts)
+  }, [opts])
 
   const handleSelfieChange = useCallback((value: string | null) => {
     setJoinSelfie(value)
@@ -175,10 +172,6 @@ export default function Home() {
         setRoomCode(code)
         roomCodeRef.current = code
         saveHostRoom(code)
-        if (Array.isArray(rec.questions)) {
-          const qs = rec.questions.filter((q): q is string => typeof q === 'string')
-          setQuestions(qs)
-        }
         if (typeof rec.opts === 'object' && rec.opts !== null) {
           const o = rec.opts as GameOptions
           setOpts({ norepeat: o.norepeat === true, shuffle: o.shuffle === true })
@@ -200,12 +193,15 @@ export default function Home() {
       const rec = asRecord(payload)
       const name = typeof rec.name === 'string' ? rec.name : ''
       const state = rec.state === 'playing' ? 'playing' : 'lobby'
+      const ready = rec.ready === true
       setJoining(false)
+      setSubmitting(false)
       setMyName(name)
       if (state === 'playing') {
         setPlayerView('play')
       } else {
-        setPlayerView('wait')
+        // After joining, every player writes his own questions first.
+        setPlayerView(ready ? 'wait' : 'questions')
       }
       if (identityRef.current) {
         const identity: StoredIdentity = {
@@ -216,6 +212,11 @@ export default function Home() {
         identityRef.current = identity
         saveIdentity(identity)
       }
+    }
+
+    const onPlayerSubmitted = () => {
+      setSubmitting(false)
+      setPlayerView('wait')
     }
 
     const onGameTurn = (payload: unknown) => {
@@ -297,6 +298,7 @@ export default function Home() {
     socket.on('room:created', onRoomCreated)
     socket.on('lobby:update', onLobbyUpdate)
     socket.on('player:joined-ok', onJoinedOk)
+    socket.on('player:submitted', onPlayerSubmitted)
     socket.on('game:turn', onGameTurn)
     socket.on('player:question', onPlayerQuestion)
     socket.on('host:question', onHostQuestion)
@@ -310,6 +312,7 @@ export default function Home() {
       socket.off('room:created', onRoomCreated)
       socket.off('lobby:update', onLobbyUpdate)
       socket.off('player:joined-ok', onJoinedOk)
+      socket.off('player:submitted', onPlayerSubmitted)
       socket.off('game:turn', onGameTurn)
       socket.off('player:question', onPlayerQuestion)
       socket.off('host:question', onHostQuestion)
@@ -424,12 +427,8 @@ export default function Home() {
   const createRoom = useCallback(() => {
     if (!socket) return
     setHostView('reconnecting')
-    socket.emit('host:create', { questions, opts })
-  }, [socket, questions, opts])
-
-  const startGame = useCallback(() => {
-    socket?.emit('host:start')
-  }, [socket])
+    socket.emit('host:create', { opts })
+  }, [socket, opts])
 
   const nextTurn = useCallback(() => {
     if (!socket) return
@@ -460,6 +459,16 @@ export default function Home() {
     socket?.emit('player:next')
   }, [socket])
 
+  /** Player taps "انتهيت" on the question-writing screen. */
+  const submitQuestions = useCallback(
+    (list: string[]) => {
+      if (!socket || submitting) return
+      setSubmitting(true)
+      socket.emit('player:submit-questions', { questions: list })
+    },
+    [socket, submitting],
+  )
+
   const closeRoom = useCallback(() => {
     clearHostRoom()
     socket?.emit('host:close')
@@ -473,9 +482,7 @@ export default function Home() {
       case 'setup':
         return (
           <HostSetup
-            questions={questions}
             opts={opts}
-            onQuestionsChange={setQuestions}
             onOptsChange={setOpts}
             onCreate={createRoom}
             busy={false}
@@ -488,8 +495,6 @@ export default function Home() {
           <HostLobby
             code={roomCode}
             players={players}
-            questionsCount={questions.length}
-            onStart={startGame}
             onClose={closeRoom}
           />
         ) : (
@@ -538,6 +543,14 @@ export default function Home() {
         )
       case 'reconnecting':
         return <LoaderCard title={`جاري الانضمام للغرفة ${roomCode ?? ''}...`} />
+      case 'questions':
+        return (
+          <PlayerQuestions
+            name={myName}
+            onSubmit={submitQuestions}
+            busy={submitting}
+          />
+        )
       case 'wait':
         return <PlayerWait name={myName} selfie={mySelfie} players={players} />
       case 'play':
@@ -555,7 +568,7 @@ export default function Home() {
           <LoaderCard title="جاري تجهيز الدور..." />
         )
       case 'end':
-        return <PlayerEnd players={players} />
+        return <PlayerEnd players={players} onNewRound={() => setPlayerView('questions')} />
     }
   }
 

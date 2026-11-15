@@ -7,6 +7,8 @@ export interface PublicPlayer {
   /** Data URL of the selfie; may be '' when the player skipped the photo. */
   selfie: string
   connected: boolean
+  /** True once the player submitted his own questions. */
+  ready: boolean
 }
 
 export interface GameOptions {
@@ -27,4 +29,4 @@ export interface TurnState {
 export type RoomState = 'lobby' | 'playing'
 
 export type HostView = 'setup' | 'reconnecting' | 'lobby' | 'game'
-export type PlayerView = 'join' | 'reconnecting' | 'wait' | 'play' | 'end'
+export type PlayerView = 'join' | 'reconnecting' | 'questions' | 'wait' | 'play' | 'end'

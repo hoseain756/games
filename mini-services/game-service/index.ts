@@ -21,6 +21,8 @@ interface PublicPlayer {
   /** Data URL string; may be '' if the player skipped the selfie. */
   selfie: string
   connected: boolean
+  /** True once the player submitted his own questions. */
+  ready: boolean
 }
 
 interface GameOptions {
@@ -32,11 +34,14 @@ interface Room {
   /** 4 chars, alphabet without 0/O/1/I/L. */
   code: string
   hostSocketId: string
+  /** Empty until the game starts, then holds the POOL of all players' questions. */
   questions: string[]
   opts: GameOptions
   state: 'lobby' | 'playing'
   /** Ordered by join time. */
   players: PublicPlayer[]
+  /** playerId -> the questions he wrote (lobby phase). */
+  submissions: Map<string, string[]>
   /** Player ids in turn order (only meaningful while playing). */
   order: string[]
   /** Index into order. */
@@ -72,6 +77,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no 0/O/1/I/L
 const CODE_LENGTH = 4
 const MAX_PLAYERS = 20
 const MAX_QUESTIONS = 500
+const MAX_QUESTIONS_PER_PLAYER = 30
 const QUESTION_MAX_LEN = 200
 const NAME_MAX_LEN = 30
 const SELFIE_MAX_LEN = 300000
@@ -80,13 +86,11 @@ const CLEANUP_INTERVAL_MS = 60_000
 const ROOM_TTL_MS = 10 * 60 * 1000
 
 const MSG = {
-  NO_QUESTIONS: 'أضف سؤالاً واحداً على الأقل',
   ROOM_EXPIRED: 'انتهت صلاحية الغرفة',
   ROOM_NOT_FOUND: 'الغرفة غير موجودة، تأكد من الرمز',
   GAME_ALREADY_STARTED: 'اللعبة بدأت بالفعل',
   NAME_TAKEN: 'الاسم مستخدم، اختر اسماً آخر',
   ROOM_FULL: 'الغرفة ممتلئة',
-  NEED_TWO_PLAYERS: 'تحتاج لاعبين اثنين على الأقل للبدء',
   BAG_REFILLED: 'انتهت الأسئلة، نعيد خلطها',
   UNAUTHORIZED: 'غير مصرح',
   INVALID_NAME: 'الاسم غير صالح',
@@ -144,6 +148,21 @@ function cleanQuestions(raw: unknown): string[] {
     const trimmed = item.trim()
     if (trimmed.length >= 1 && trimmed.length <= QUESTION_MAX_LEN) out.push(trimmed)
     if (out.length >= MAX_QUESTIONS) break
+  }
+  return out
+}
+
+/** Clean + validate ONE player's question list: 1..30 unique questions. */
+function cleanPlayerQuestions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const trimmed = item.trim()
+    if (trimmed.length >= 1 && trimmed.length <= QUESTION_MAX_LEN && !out.includes(trimmed)) {
+      out.push(trimmed)
+    }
+    if (out.length >= MAX_QUESTIONS_PER_PLAYER) break
   }
   return out
 }
@@ -218,6 +237,7 @@ function removePlayerFromRoom(room: Room, playerId: string) {
     if (room.idx >= room.order.length) room.idx = 0
   }
   room.playerSockets.delete(playerId)
+  room.submissions.delete(playerId)
 }
 
 /** If this socket is mapped as a player in some other room, detach it cleanly. */
@@ -254,6 +274,7 @@ function requireHost(socket: Socket): Room | null {
 
 function pickQuestion(room: Room) {
   const qs = room.questions
+  if (!qs.length) return // defensive: pool is guaranteed non-empty at start
   if (room.opts.norepeat) {
     if (!room.bag.length) {
       room.bag = shuffle(qs)
@@ -304,11 +325,9 @@ function rerollQuestion(room: Room) {
 
 function onHostCreate(socket: Socket, payload: unknown) {
   const body = asRecord(payload)
+  // Questions are no longer required from the host — every player writes his
+  // own list from his phone; the pool is built when everyone is done.
   const questions = cleanQuestions(body.questions)
-  if (questions.length === 0) {
-    socket.emit('room:error', { message: MSG.NO_QUESTIONS })
-    return
-  }
   const optsRecord = asRecord(body.opts)
   const opts: GameOptions = {
     norepeat: optsRecord.norepeat === true,
@@ -322,6 +341,7 @@ function onHostCreate(socket: Socket, payload: unknown) {
     opts,
     state: 'lobby',
     players: [],
+    submissions: new Map(),
     order: [],
     idx: 0,
     round: 1,
@@ -335,7 +355,7 @@ function onHostCreate(socket: Socket, payload: unknown) {
   rooms.set(code, room)
   socket.join(code)
   socketRooms.set(socket.id, { code, role: 'host' })
-  console.log(`[game-service] room ${code} created by host ${socket.id} (${questions.length} questions, norepeat=${opts.norepeat}, shuffle=${opts.shuffle})`)
+  console.log(`[game-service] room ${code} created by host ${socket.id} (shuffle=${opts.shuffle}, norepeat=${opts.norepeat})`)
   socket.emit('room:created', { code, state: 'lobby', questions, opts })
 }
 
@@ -403,7 +423,7 @@ function onPlayerJoin(socket: Socket, payload: unknown) {
     room.playerSockets.set(playerId, socket.id)
     socketRooms.set(socket.id, { code, role: 'player', playerId })
     socket.join(code)
-    socket.emit('player:joined-ok', { name: existing.name, state: 'playing' })
+    socket.emit('player:joined-ok', { name: existing.name, state: 'playing', ready: existing.ready })
     // Give the rejoining player the full turn context so the UI can render.
     socket.emit('game:turn', turnPayload(room))
     if (room.order[room.idx] === playerId && room.currentQuestion !== null) {
@@ -423,7 +443,7 @@ function onPlayerJoin(socket: Socket, payload: unknown) {
     room.playerSockets.set(playerId, socket.id)
     socketRooms.set(socket.id, { code, role: 'player', playerId })
     socket.join(code)
-    socket.emit('player:joined-ok', { name, state: 'lobby' })
+    socket.emit('player:joined-ok', { name, state: 'lobby', ready: existing.ready })
     emitLobbyUpdate(room)
     console.log(`[game-service] player "${name}" re-joined lobby ${code}`)
     return
@@ -438,12 +458,12 @@ function onPlayerJoin(socket: Socket, payload: unknown) {
     socket.emit('room:error', { message: MSG.ROOM_FULL })
     return
   }
-  const player: PublicPlayer = { id: playerId, name, selfie, connected: true }
+  const player: PublicPlayer = { id: playerId, name, selfie, connected: true, ready: false }
   room.players.push(player)
   room.playerSockets.set(playerId, socket.id)
   socketRooms.set(socket.id, { code, role: 'player', playerId })
   socket.join(code)
-  socket.emit('player:joined-ok', { name, state: 'lobby' })
+  socket.emit('player:joined-ok', { name, state: 'lobby', ready: false })
   emitLobbyUpdate(room)
   console.log(`[game-service] player "${name}" joined room ${code} (${room.players.length}/${MAX_PLAYERS})`)
 }
@@ -459,15 +479,20 @@ function onPlayerLeave(socket: Socket) {
   room.lastActivity = Date.now()
   console.log(`[game-service] player "${info.playerId}" left room ${room.code}`)
   emitLobbyUpdate(room)
+  tryAutoStart(room)
 }
 
-function onHostStart(socket: Socket) {
-  const room = requireHost(socket)
-  if (!room) return
-  if (room.players.length < 2) {
-    socket.emit('room:error', { message: MSG.NEED_TWO_PLAYERS })
-    return
+/**
+ * Build the question pool from every player's submission and start the game.
+ * Only called when ALL connected players are ready.
+ */
+function startGame(room: Room) {
+  const pool: string[] = []
+  for (const player of room.players) {
+    const list = room.submissions.get(player.id)
+    if (list) pool.push(...list)
   }
+  room.questions = pool
   room.state = 'playing'
   const ids = room.players.map(p => p.id) // join order
   room.order = room.opts.shuffle ? shuffle(ids) : ids
@@ -477,7 +502,48 @@ function onHostStart(socket: Socket) {
   pickQuestion(room)
   io.to(room.code).emit('game:turn', turnPayload(room))
   sendQuestionToCurrentPlayer(room)
-  console.log(`[game-service] room ${room.code} started (${room.order.length} players)`)
+  console.log(`[game-service] room ${room.code} auto-started (${room.order.length} players, pool of ${pool.length} questions)`)
+}
+
+/** Auto-start once at least two players are connected and ALL of them are ready. */
+function tryAutoStart(room: Room) {
+  if (room.state !== 'lobby') return
+  const connected = room.players.filter(p => p.connected)
+  if (connected.length < 2) return
+  if (!connected.every(p => p.ready)) return
+  startGame(room)
+}
+
+/** A player finished writing his questions on his phone. */
+function onPlayerSubmitQuestions(socket: Socket, payload: unknown) {
+  const info = socketRooms.get(socket.id)
+  if (!info || info.role !== 'player' || !info.playerId) return
+  const room = rooms.get(info.code)
+  if (!room) {
+    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+    return
+  }
+  if (room.state !== 'lobby') {
+    socket.emit('room:error', { message: MSG.GAME_ALREADY_STARTED })
+    return
+  }
+  const player = room.players.find(p => p.id === info.playerId)
+  if (!player) {
+    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+    return
+  }
+  if (player.ready) return // already submitted, ignore duplicates
+  const list = cleanPlayerQuestions(asRecord(payload).questions)
+  if (!list.length) {
+    socket.emit('room:error', { message: MSG.INVALID_DATA })
+    return
+  }
+  room.submissions.set(player.id, list)
+  player.ready = true
+  socket.emit('player:submitted', { count: list.length })
+  emitLobbyUpdate(room)
+  console.log(`[game-service] player "${player.name}" submitted ${list.length} question(s) in room ${room.code}`)
+  tryAutoStart(room)
 }
 
 /** Advance to the next player (wraps around and starts a new round). */
@@ -555,7 +621,11 @@ function onHostEnd(socket: Socket) {
   room.bag = []
   room.currentQuestion = null
   room.peeking = false
-  console.log(`[game-service] room ${room.code} ended by host, back to lobby`)
+  // New round: everyone writes fresh questions again.
+  room.questions = []
+  room.submissions.clear()
+  for (const player of room.players) player.ready = false
+  console.log(`[game-service] room ${room.code} ended by host, back to lobby (ready flags reset)`)
   io.to(room.code).emit('game:ended', {})
   emitLobbyUpdate(room)
 }
@@ -613,6 +683,8 @@ function handleDisconnect(socket: Socket) {
       player.connected = false
       emitLobbyUpdate(room)
       console.log(`[game-service] player "${player.name}" disconnected from room ${room.code}`)
+      // The leaver might have been the only one blocking the auto-start.
+      tryAutoStart(room)
     }
   }
 }
@@ -652,7 +724,7 @@ io.on('connection', (socket: Socket) => {
   listen(socket, 'host:reconnect', onHostReconnect)
   listen(socket, 'player:join', onPlayerJoin)
   listen(socket, 'player:leave', onPlayerLeave)
-  listen(socket, 'host:start', onHostStart)
+  listen(socket, 'player:submit-questions', onPlayerSubmitQuestions)
   listen(socket, 'host:next', onHostNext)
   listen(socket, 'player:next', onPlayerNext)
   listen(socket, 'host:reroll', onHostReroll)

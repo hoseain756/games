@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Copy, Play, QrCode, Users } from 'lucide-react'
+import { Check, CheckCircle2, Copy, Loader2, QrCode, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -21,14 +21,10 @@ import type { PublicPlayer } from '@/lib/game-types'
 export function HostLobby({
   code,
   players,
-  questionsCount,
-  onStart,
   onClose,
 }: {
   code: string
   players: PublicPlayer[]
-  questionsCount: number
-  onStart: () => void
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -51,7 +47,7 @@ export function HostLobby({
     }
   }
 
-  const canStart = players.length >= 2 && questionsCount >= 1
+  const readyCount = players.filter(p => p.ready).length
 
   return (
     <div className="flex flex-1 flex-col gap-4 pt-4">
@@ -134,8 +130,16 @@ export function HostLobby({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-bold">{player.name}</span>
-                      {!player.connected && (
-                        <span className="block text-[10px] text-muted-foreground">غير متصل</span>
+                      {player.ready ? (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                          <CheckCircle2 className="size-3" aria-hidden="true" />
+                          جهز أسئلته
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                          يكتب أسئلته...
+                        </span>
                       )}
                     </span>
                   </li>
@@ -149,23 +153,42 @@ export function HostLobby({
               )}
             </div>
           )}
+          {players.length >= 2 && (
+            <div className="mt-4 space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-muted-foreground">جاهزون لبدء الجولة</span>
+                <span className="text-primary">
+                  {readyCount} من {players.length}
+                </span>
+              </div>
+              <div
+                className="h-2.5 w-full overflow-hidden rounded-full bg-secondary"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={players.length}
+                aria-valuenow={readyCount}
+                aria-label="عدد اللاعبين الجاهزين"
+              >
+                <div
+                  className="brand-gradient h-full rounded-full transition-all duration-500"
+                  style={{ width: `${players.length ? (readyCount / players.length) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
           {players.length < 2 && (
             <p className="mt-3 text-center text-xs text-muted-foreground">
-              تحتاج لاعبين اثنين على الأقل لبدء اللعبة
+              تحتاج لاعبين اثنين على الأقل لبدء الجولة
             </p>
           )}
         </CardContent>
       </Card>
 
       <div className="sticky bottom-0 safe-bottom mt-auto space-y-2 border-t bg-background pt-3">
-        <Button
-          onClick={onStart}
-          disabled={!canStart}
-          className="brand-gradient shadow-brand btn-press h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
-        >
-          <Play className="size-5" aria-hidden="true" />
-          ابدأ اللعبة
-        </Button>
+        <p className="flex items-center justify-center gap-2 text-center text-sm font-bold text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          تبدأ الجولة تلقائياً لما يكتب جميع اللاعبين أسئلتهم
+        </p>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="ghost" className="w-full text-muted-foreground">

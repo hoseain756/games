@@ -8,7 +8,7 @@ import type { GameOptions } from '@/lib/game-types'
 
 const IDENTITY_KEY = 'qg-identity'
 const HOST_ROOM_KEY = 'qg-host-room'
-const SETUP_KEY = 'qg-setup'
+const OPTS_KEY = 'qg-opts'
 
 export interface StoredIdentity {
   playerId: string
@@ -19,11 +19,6 @@ export interface StoredIdentity {
 
 export interface StoredHostRoom {
   code: string
-}
-
-export interface StoredSetup {
-  questions: string[]
-  opts: GameOptions
 }
 
 function safeSession(): Storage | null {
@@ -131,25 +126,25 @@ export function clearHostRoom(): void {
   }
 }
 
-export function loadSetup(): StoredSetup | null {
+export function loadOpts(): GameOptions | null {
   const local = safeLocal()
   if (!local) return null
   try {
-    const raw = local.getItem(SETUP_KEY)
+    const raw = local.getItem(OPTS_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as StoredSetup
-    if (!Array.isArray(parsed?.questions) || !parsed?.opts) return null
-    return parsed
+    const parsed = JSON.parse(raw) as { opts?: GameOptions }
+    if (!parsed?.opts || typeof parsed.opts !== 'object') return null
+    return { norepeat: parsed.opts.norepeat === true, shuffle: parsed.opts.shuffle === true }
   } catch {
     return null
   }
 }
 
-export function saveSetup(setup: StoredSetup): void {
+export function saveOpts(opts: GameOptions): void {
   const local = safeLocal()
   if (!local) return
   try {
-    local.setItem(SETUP_KEY, JSON.stringify(setup))
+    local.setItem(OPTS_KEY, JSON.stringify({ opts }))
   } catch {
     /* ignore */
   }
