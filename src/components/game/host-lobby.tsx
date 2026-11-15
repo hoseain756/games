@@ -62,7 +62,7 @@ export function HostLobby({
             امسح الرمز بكاميرا الجوال للانضمام
           </div>
 
-          <div className="rounded-3xl bg-white p-3 shadow-brand">
+          <div className="rounded-3xl bg-white p-3 shadow-brand ring-1 ring-black/5">
             {joinUrl ? (
               <img
                 src={`/api/qr?text=${encodeURIComponent(joinUrl)}`}
@@ -149,11 +149,11 @@ export function HostLobby({
         </CardContent>
       </Card>
 
-      <div className="sticky bottom-0 mt-auto space-y-2 bg-gradient-to-t from-background via-background to-transparent pb-2 pt-4">
+      <div className="sticky bottom-0 safe-bottom mt-auto space-y-2 border-t bg-background pt-3">
         <Button
           onClick={onStart}
           disabled={!canStart}
-          className="brand-gradient shadow-brand h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
+          className="brand-gradient shadow-brand btn-press h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
         >
           <Play className="size-5" aria-hidden="true" />
           ابدأ اللعبة

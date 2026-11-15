@@ -96,7 +96,7 @@ export function PlayerPlay({
         <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2 text-center">
           <PlayerAvatar player={{ name: myName, selfie: mySelfie }} size={72} className="animate-pop" />
           <div className="space-y-1">
-            <Badge className="brand-gradient gap-1.5 border-0 text-white shadow-brand">
+            <Badge className="brand-gradient gap-1.5 border-0 text-primary-foreground shadow-brand">
               <PartyPopper className="size-3.5" aria-hidden="true" />
               جاء دورك يا {myName}
             </Badge>
@@ -145,7 +145,7 @@ export function PlayerPlay({
 export function PlayerEnd({ players }: { players: PublicPlayer[] }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
-      <span className="brand-gradient shadow-brand grid size-20 place-items-center rounded-full text-white">
+      <span className="brand-gradient shadow-brand grid size-20 place-items-center rounded-full text-primary-foreground">
         <Trophy className="size-9" aria-hidden="true" />
       </span>
       <h2 className="text-3xl font-extrabold">انتهت اللعبة!</h2>

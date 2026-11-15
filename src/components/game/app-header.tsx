@@ -38,7 +38,7 @@ export function AppHeader({ connected }: { connected: boolean }) {
     <header className="mx-auto w-full max-w-xl px-4 pt-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="brand-gradient shadow-brand grid size-10 place-items-center rounded-2xl text-white">
+          <span className="brand-gradient shadow-brand grid size-10 place-items-center rounded-2xl text-primary-foreground">
             <Dices className="size-5" aria-hidden="true" />
           </span>
           <h1 className="text-xl font-extrabold tracking-tight">لعبة الأسئلة</h1>

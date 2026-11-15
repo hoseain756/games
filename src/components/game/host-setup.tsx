@@ -221,11 +221,11 @@ export function HostSetup({
         </TabsContent>
       </Tabs>
 
-      <div className="sticky bottom-0 mt-auto bg-gradient-to-t from-background via-background to-transparent pb-2 pt-4">
+      <div className="sticky bottom-0 safe-bottom mt-auto border-t bg-background pt-3">
         <Button
           onClick={onCreate}
           disabled={questions.length === 0 || busy}
-          className="brand-gradient shadow-brand h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
+          className="brand-gradient shadow-brand btn-press h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
         >
           <QrCode className="size-5" aria-hidden="true" />
           أنشئ غرفة اللعب عبر QR

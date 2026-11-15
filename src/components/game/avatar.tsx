@@ -1,6 +1,6 @@
 'use client'
 
-const COLORS = ['#1a56db', '#2563eb', '#1e3a8a', '#0369a1', '#3b82f6', '#334155', '#0ea5e9', '#1d4ed8']
+const COLORS = ['#ea580c', '#0d9488', '#e11d48', '#7c3aed', '#16a34a', '#0284c7', '#d97706', '#db2777']
 
 function colorFor(name: string) {
   let hash = 0

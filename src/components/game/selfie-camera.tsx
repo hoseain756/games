@@ -163,7 +163,7 @@ export function SelfieCamera({
           <>
             <Button
               size="lg"
-              className="brand-gradient h-14 w-14 rounded-full p-0 shadow-brand"
+              className="brand-gradient text-primary-foreground shadow-brand btn-press h-14 w-14 rounded-full p-0"
               onClick={capture}
               aria-label="التقاط الصورة"
             >

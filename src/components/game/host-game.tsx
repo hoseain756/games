@@ -121,7 +121,7 @@ export function HostGame({
         <div className="grid grid-cols-[1fr_auto] gap-2.5">
           <Button
             onClick={onNext}
-            className="brand-gradient shadow-brand h-14 gap-2 rounded-2xl text-lg font-extrabold"
+            className="brand-gradient shadow-brand btn-press h-14 gap-2 rounded-2xl text-lg font-extrabold"
           >
             {isLast ? (
               <>

@@ -34,7 +34,7 @@ export function PlayerJoin({
     <div className="flex flex-1 flex-col gap-4 pt-4">
       <Card className="shadow-brand">
         <CardContent className="flex items-center gap-3 p-4">
-          <span className="brand-gradient grid size-12 shrink-0 place-items-center rounded-2xl text-white">
+          <span className="brand-gradient grid size-12 shrink-0 place-items-center rounded-2xl text-primary-foreground">
             <QrCode className="size-6" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -85,7 +85,7 @@ export function PlayerJoin({
           <Button
             onClick={() => onJoin(name.trim(), selfie ?? '')}
             disabled={!canJoin}
-            className="brand-gradient shadow-brand h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
+            className="brand-gradient shadow-brand btn-press h-14 w-full gap-2 rounded-2xl text-lg font-extrabold"
           >
             {joining ? (
               <>
