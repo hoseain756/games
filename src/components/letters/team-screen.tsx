@@ -6,13 +6,17 @@ import {
   CheckCircle2,
   Hourglass,
   Lock,
+  MoveHorizontal,
+  MoveVertical,
   PencilLine,
+  Trophy,
   Zap,
 } from 'lucide-react'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import {
   TEAM_COLORS,
   TEAM_LABELS,
+  TEAM_MISSIONS,
   type LettersState,
   type LettersTeam,
 } from '@/lib/letters-types'
@@ -106,6 +110,13 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
       enabled: false,
       classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
     }
+  } else if (state.phase === 'game_over') {
+    button = {
+      label: 'انتهت اللعبة',
+      icon: Trophy,
+      enabled: false,
+      classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+    }
   } else if (state.phase === 'choosing') {
     button = isMyTurn
       ? {
@@ -149,6 +160,10 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
         return state.result?.outcome === 'correct'
           ? `${state.result.team === team ? 'أحسنتم! كسبتوا الخلية' : `${TEAM_LABELS[state.result.team ?? 'A']} كسب الخلية`}`
           : 'انتهت الجولة دون إجابة'
+      case 'game_over':
+        return state.gameWinner === team
+          ? 'فزتم! وصّلتم شريط فريقكم — مبروك!'
+          : `${TEAM_LABELS[state.gameWinner ?? 'A']} وصّل شريطه وفاز باللعبة`
     }
   })()
 
@@ -174,6 +189,21 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
           حروف مع حسين
         </span>
       </header>
+
+      {/* Team mission on the connection board */}
+      <div className="mt-2 flex justify-center px-4">
+        <p
+          className={`flex w-fit items-center gap-1.5 rounded-full border-2 px-3 py-1 text-center text-xs font-extrabold ${color.chip}`}
+          role="note"
+        >
+          {team === 'A' ? (
+            <MoveVertical className="size-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <MoveHorizontal className="size-4 shrink-0" aria-hidden="true" />
+          )}
+          مهمتكم: {TEAM_MISSIONS[team]}
+        </p>
+      </div>
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 pb-44 pt-3">
         {/* Status + timer */}
@@ -241,6 +271,34 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
               <p className="mt-1 text-base font-bold text-purple-500">الجواب: {state.result.answer}</p>
             )}
             <p className="mt-2 text-sm font-bold text-purple-400">بانتظار المقدم لفتح الجولة التالية</p>
+          </section>
+        )}
+
+        {/* Game over celebration */}
+        {state.phase === 'game_over' && (
+          <section
+            className={`rounded-3xl border-4 p-5 text-center shadow-lg ${
+              state.gameWinner === team
+                ? 'border-emerald-400 bg-emerald-50'
+                : 'border-purple-200 bg-white'
+            }`}
+          >
+            <Trophy
+              className={`mx-auto size-12 ${state.gameWinner === team ? 'text-amber-500' : 'text-purple-300'}`}
+              aria-hidden="true"
+            />
+            <p className="mt-2 text-xl font-black">
+              {state.gameWinner === team ? 'فزتم باللعبة!' : `${TEAM_LABELS[state.gameWinner ?? 'A']} فاز باللعبة`}
+            </p>
+            <p className="mt-1 text-sm font-bold text-purple-500">
+              {state.gameWinner === team ? 'وصّلتم شريط فريقكم بالخلايا' : 'وصّل شريطه قبلكم — حظاً أوفر المرة القادمة'}
+            </p>
+            {state.result?.answer && (
+              <p className="mt-2 rounded-xl bg-purple-50 px-3 py-2 text-sm font-extrabold text-purple-700">
+                آخر جواب: {state.result.answer}
+              </p>
+            )}
+            <p className="mt-2 text-sm font-bold text-purple-400">المقدم يفتح لعبة جديدة</p>
           </section>
         )}
       </main>

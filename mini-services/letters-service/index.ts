@@ -15,6 +15,7 @@ import {
   QUESTION_BANK,
   type BankQuestion,
 } from '../../src/lib/question-bank'
+import { BOARD_CELLS, findWinningChain } from '../../src/lib/hex-board'
 import type {
   LettersPhase,
   LettersQuestionView,
@@ -45,6 +46,8 @@ interface ServerState {
   buzzWinner: LettersTeam | null
   locked: boolean
   result: LettersRoundResult | null
+  gameWinner: LettersTeam | null
+  winPath: string[]
   lastEvent: string | null
   usedQuestionIds: string[]
   chooseAttempts: number
@@ -74,12 +77,15 @@ function lobbyState(): ServerState {
     phaseEndsAt: null,
     scores: { A: 0, B: 0 },
     claimed: {},
-    layout: [...ARABIC_LETTERS],
+    // 25 random letters of the 28 fill the 5x5 board each session.
+    layout: shuffled(ARABIC_LETTERS).slice(0, BOARD_CELLS),
     roundNumber: 0,
     answeredTeams: [],
     buzzWinner: null,
     locked: false,
     result: null,
+    gameWinner: null,
+    winPath: [],
     lastEvent: 'بانتظار المقدم لبدء الجلسة',
     usedQuestionIds: [],
     chooseAttempts: 0,
@@ -95,7 +101,7 @@ let state: ServerState = lobbyState()
 
 function sanitizeFor(includeAnswer: boolean): LettersState {
   const q = state.question
-  const reveal = includeAnswer || state.phase === 'round_end'
+  const reveal = includeAnswer || state.phase === 'round_end' || state.phase === 'game_over'
   const questionView: LettersQuestionView | null = q
     ? {
         id: q.id,
@@ -131,6 +137,8 @@ function sanitizeFor(includeAnswer: boolean): LettersState {
       display: size('display') > 0,
     },
     result: state.result,
+    gameWinner: state.gameWinner,
+    winPath: [...state.winPath],
     lastEvent: state.lastEvent,
   }
 }
@@ -187,7 +195,6 @@ function advanceAfterWindow(reason: 'timeout' | 'wrong') {
 }
 
 function finishRound(outcome: 'correct' | 'failed', team: LettersTeam | null) {
-  state.phase = 'round_end'
   state.phaseEndsAt = null
   state.result = {
     outcome,
@@ -197,10 +204,24 @@ function finishRound(outcome: 'correct' | 'failed', team: LettersTeam | null) {
     answer: state.question?.a ?? null,
   }
   state.locked = false
-  state.lastEvent =
-    outcome === 'correct'
-      ? `إجابة صحيحة! ${team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} يفوز بالخلية`
-      : 'انتهت الجولة دون إجابة صحيحة'
+
+  if (outcome === 'correct') {
+    // The claim may have connected the team's two edges -> whole-game win.
+    const win = findWinningChain(state.claimed, state.layout)
+    if (win) {
+      state.phase = 'game_over'
+      state.gameWinner = win.team
+      state.winPath = win.path.map(i => state.layout[i])
+      state.lastEvent = `${win.team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} وصّل شريطيه وفاز باللعبة!`
+      return
+    }
+    state.phase = 'round_end'
+    state.lastEvent = `إجابة صحيحة! ${team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} يفوز بالخلية`
+    return
+  }
+
+  state.phase = 'round_end'
+  state.lastEvent = 'انتهت الجولة دون إجابة صحيحة'
 }
 
 function pickQuestion(letter: string): BankQuestion | null {
@@ -270,9 +291,21 @@ io.on('connection', socket => {
     if (state.phase !== 'lobby' && state.phase !== 'idle') return
     state = lobbyState()
     state.phase = 'idle'
-    state.layout = shuffled(ARABIC_LETTERS)
+    state.layout = shuffled(ARABIC_LETTERS).slice(0, BOARD_CELLS)
     state.roundNumber = 1
     state.lastEvent = 'بدأت الجلسة! افتح الدور لأحد الفريقين'
+    broadcast()
+  })
+
+  // Fresh game after a win: reset scores + claims and reshuffle the board.
+  socket.on('letters:new_game', () => {
+    if (role !== 'host') return
+    if (state.phase === 'lobby') return
+    state = lobbyState()
+    state.phase = 'idle'
+    state.layout = shuffled(ARABIC_LETTERS).slice(0, BOARD_CELLS)
+    state.roundNumber = 1
+    state.lastEvent = 'لعبة جديدة! افتح الدور لأحد الفريقين'
     broadcast()
   })
 

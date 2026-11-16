@@ -1,10 +1,11 @@
 'use client'
 
-import { Hourglass, Lightbulb, MonitorPlay, Users } from 'lucide-react'
+import { Hourglass, Lightbulb, MonitorPlay, Trophy, Users } from 'lucide-react'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import {
   TEAM_COLORS,
   TEAM_LABELS,
+  TEAM_MISSIONS,
   type LettersState,
   type LettersTeam,
 } from '@/lib/letters-types'
@@ -42,6 +43,11 @@ function phaseBanner(state: LettersState): { text: string; className: string } {
             className: 'bg-emerald-600 text-white',
           }
         : { text: 'انتهت الجولة — شوفوا الجواب الصحيح', className: 'bg-purple-800 text-white' }
+    case 'game_over':
+      return {
+        text: `${TEAM_LABELS[state.gameWinner ?? 'A']} وصّل شريطيه — يفوز باللعبة!`,
+        className: 'bg-emerald-600 text-white animate-pulse',
+      }
   }
 }
 
@@ -97,6 +103,12 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
             claimed={state.claimed}
             activeLetter={state.phase === 'choosing' ? null : state.activeLetter}
             selectable={null}
+            winPath={
+              state.phase === 'game_over' && state.winPath.length > 0
+                ? new Set(state.winPath)
+                : null
+            }
+            winTeam={state.phase === 'game_over' ? state.gameWinner : null}
             className="h-auto w-full max-w-4xl drop-shadow-[0_14px_20px_rgba(124,58,173,0.35)]"
           />
         </section>
@@ -118,7 +130,14 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
           </div>
 
           {/* Timer */}
-          {remaining !== null ? (
+          {state.phase === 'game_over' ? (
+            <div className="rounded-2xl bg-emerald-600 p-4 text-center shadow-lg">
+              <Trophy className="mx-auto size-10 text-amber-300" aria-hidden="true" />
+              <p className="mt-1 text-xl font-black">
+                {TEAM_LABELS[state.gameWinner ?? 'A']} فاز!
+              </p>
+            </div>
+          ) : remaining !== null ? (
             <div className="rounded-2xl bg-purple-900/60 p-4 text-center">
               <p className="flex items-center justify-center gap-2 text-sm font-bold text-purple-200">
                 <Hourglass className="size-4" aria-hidden="true" />
@@ -187,6 +206,18 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
                 {TEAM_LABELS[team]} {state.scores[team]}
               </span>
             ))}
+          </div>
+
+          {/* Board legend: which bars belong to which team */}
+          <div className="space-y-1.5 rounded-2xl bg-purple-900/60 p-3 text-xs font-bold text-purple-100">
+            <p className="flex items-center gap-2">
+              <span className="inline-block size-3 shrink-0 rounded-sm bg-amber-400" aria-hidden="true" />
+              الفريق الأول: {TEAM_MISSIONS.A}
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="inline-block size-3 shrink-0 rounded-sm bg-red-400" aria-hidden="true" />
+              الفريق الثاني: {TEAM_MISSIONS.B}
+            </p>
           </div>
         </aside>
       </main>

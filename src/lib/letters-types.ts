@@ -19,6 +19,7 @@ export type LettersRole = 'host' | 'teamA' | 'teamB' | 'display'
  * - open        both teams used their windows — buzzers open for everyone
  * - buzz_answer first team to buzz is now answering within its time
  * - round_end   round finished (claim or no claim), result is revealed
+ * - game_over   a team connected its two edges and WON THE WHOLE GAME
  */
 export type LettersPhase =
   | 'lobby'
@@ -28,6 +29,7 @@ export type LettersPhase =
   | 'open'
   | 'buzz_answer'
   | 'round_end'
+  | 'game_over'
 
 /** Question as seen by clients; the answer is stripped unless allowed. */
 export interface LettersQuestionView {
@@ -75,6 +77,10 @@ export interface LettersState {
   locked: boolean
   online: { host: boolean; A: boolean; B: boolean; display: boolean }
   result: LettersRoundResult | null
+  /** Set in the game_over phase: the team that connected its two edges. */
+  gameWinner: LettersTeam | null
+  /** Letters of the winning chain, edge to edge (game_over only). */
+  winPath: string[]
   /** Short human-readable status message (Arabic). */
   lastEvent: string | null
 }
@@ -114,3 +120,9 @@ export const ROLE_LABELS: Record<LettersRole, string> = {
 export const ANSWER_TIME_OPTIONS = [60, 30, 15] as const
 /** Options offered to the host for the letter-choice window. */
 export const CHOOSE_TIME_OPTIONS = [30, 20, 15, 10] as const
+
+/** Mission of each team on the 5x5 connection board. */
+export const TEAM_MISSIONS: Record<LettersTeam, string> = {
+  A: 'توصيل الشريطين الأصفرين — الأعلى بالأسفل',
+  B: 'توصيل الشريطين الأحمرين — اليمين باليسار',
+}

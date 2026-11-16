@@ -4,28 +4,50 @@ import { memo } from 'react'
 import type { LettersTeam } from '@/lib/letters-types'
 
 // ---------------------------------------------------------------------------
-// Hexagon board — pointy-top hexagons drawn with SVG so the borders get the
-// rounded joins seen in the reference design (white cells, thick purple
-// borders, purple letters, colored claimed cells).
+// Hex CONNECTION board — 5 rows x 5 letters, staircase layout (classic Hex).
+// Amber bars hug the TOP + BOTTOM edges (Team A must connect them), red bars
+// hug the LEFT + RIGHT edges (Team B must connect them). Claimed cells take
+// the answering team's color; the winning chain glows on victory.
 // ---------------------------------------------------------------------------
 
 const PURPLE_BORDER = '#7c3aad'
 const PURPLE_LETTER = '#6d28d9'
 const TEAM_FILL: Record<LettersTeam, string> = { A: '#fbbf24', B: '#f87171' }
+const TEAM_DEEP: Record<LettersTeam, string> = { A: '#b45309', B: '#b91c1c' }
+const A_BAR = '#f59e0b'
+const A_BAR_DEEP = '#92400e'
+const B_BAR = '#ef4444'
+const B_BAR_DEEP = '#991b1b'
 
 /** Isolated forms that read better on the board. */
 const LETTER_DISPLAY: Record<string, string> = { ه: 'هـ' }
 
 const S = 100 // hex radius (center -> vertex)
 const W = Math.sqrt(3) * S // hex width
-const GAP = 1.06 // spacing multiplier -> small gaps between cells
-const SPACING_X = W * GAP
-const SPACING_Y = 1.5 * S * GAP
-const COLS = 7
-const MARGIN = 10
+const GAP = 1.04 // spacing multiplier -> small gaps between cells
+const SX = W * GAP
+const SY = 1.5 * S * GAP
+const COLS = 5
+const PAD = 16
+const BAR_T = 20 // edge bar thickness
+const BAR_OFF = 12 // gap between the bars and the cells
 
-const VIEW_W = SPACING_X * (COLS - 1) + SPACING_X / 2 + W + MARGIN * 2
-const VIEW_H = SPACING_Y * 3 + 2 * S + MARGIN * 2
+// Rows shift RIGHT by half a cell per row (staircase).
+const cellCx = (row: number, col: number) => PAD + W / 2 + col * SX + row * (SX / 2)
+const cellCy = (row: number) => PAD + S + row * SY
+
+// Board extremes.
+const TOP_LEFT = PAD
+const TOP_RIGHT = PAD + (COLS - 1) * SX + W
+const BOT_LEFT = PAD + ((COLS - 1) * SX) / 2
+const BOT_RIGHT = BOT_LEFT + (COLS - 1) * SX + W
+const MIN_X = TOP_LEFT
+const MAX_X = BOT_RIGHT
+const MIN_Y = PAD
+const MAX_Y = PAD + 2 * S + (COLS - 1) * SY
+
+const VIEW_W = MAX_X + BAR_OFF + BAR_T + PAD
+const VIEW_H = MAX_Y + BAR_OFF + BAR_T + PAD
 
 function hexPoints(cx: number, cy: number, r: number): string {
   const points: string[] = []
@@ -37,7 +59,7 @@ function hexPoints(cx: number, cy: number, r: number): string {
 }
 
 export interface HexGridProps {
-  /** Shuffled 28 letters, positions in board order (row-major). */
+  /** Shuffled board letters, 25 entries in row-major order. */
   layout: string[]
   /** letter -> owning team (colored cells). */
   claimed?: Record<string, LettersTeam>
@@ -49,6 +71,10 @@ export interface HexGridProps {
   className?: string
   /** Hide letters completely (used for the reveal moment). */
   muted?: boolean
+  /** Letters of the winning chain (game_over): glowing halo. */
+  winPath?: ReadonlySet<string> | null
+  /** Team that owns the winning chain (halo color). */
+  winTeam?: LettersTeam | null
 }
 
 function HexGridImpl({
@@ -59,6 +85,8 @@ function HexGridImpl({
   onPick,
   className,
   muted = false,
+  winPath = null,
+  winTeam = null,
 }: HexGridProps) {
   return (
     <svg
@@ -66,16 +94,59 @@ function HexGridImpl({
       className={className}
       style={{ fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif' }}
       role="group"
-      aria-label="لوحة الحروف السداسية"
+      aria-label="لوحة الحروف السداسية — صِل شريط فريقك"
     >
+      {/* Team edge bars: A = top + bottom, B = left + right */}
+      <rect
+        x={TOP_LEFT}
+        y={MIN_Y - BAR_OFF - BAR_T}
+        width={TOP_RIGHT - TOP_LEFT}
+        height={BAR_T}
+        rx={BAR_T / 2}
+        fill={A_BAR}
+        stroke={A_BAR_DEEP}
+        strokeWidth={3}
+      />
+      <rect
+        x={BOT_LEFT}
+        y={MAX_Y + BAR_OFF}
+        width={BOT_RIGHT - BOT_LEFT}
+        height={BAR_T}
+        rx={BAR_T / 2}
+        fill={A_BAR}
+        stroke={A_BAR_DEEP}
+        strokeWidth={3}
+      />
+      <rect
+        x={MIN_X - BAR_OFF - BAR_T}
+        y={MIN_Y}
+        width={BAR_T}
+        height={MAX_Y - MIN_Y}
+        rx={BAR_T / 2}
+        fill={B_BAR}
+        stroke={B_BAR_DEEP}
+        strokeWidth={3}
+      />
+      <rect
+        x={MAX_X + BAR_OFF}
+        y={MIN_Y}
+        width={BAR_T}
+        height={MAX_Y - MIN_Y}
+        rx={BAR_T / 2}
+        fill={B_BAR}
+        stroke={B_BAR_DEEP}
+        strokeWidth={3}
+      />
+
       {layout.map((letter, index) => {
         const row = Math.floor(index / COLS)
         const col = index % COLS
-        const cx = MARGIN + W / 2 + col * SPACING_X + (row % 2 === 1 ? SPACING_X / 2 : 0)
-        const cy = MARGIN + S + row * SPACING_Y
+        const x = cellCx(row, col)
+        const y = cellCy(row)
         const owner = claimed?.[letter]
         const isActive = activeLetter === letter
         const canPick = selectable?.has(letter) === true
+        const inWin = winPath?.has(letter) === true && winTeam
 
         const fill = owner ? TEAM_FILL[owner] : '#ffffff'
         const stroke = isActive ? '#f59e0b' : PURPLE_BORDER
@@ -87,13 +158,23 @@ function HexGridImpl({
             onClick={canPick ? () => onPick?.(letter) : undefined}
             className={[
               canPick ? 'cursor-pointer transition-opacity hover:opacity-75' : '',
-              isActive ? 'animate-pulse' : '',
+              isActive || inWin ? 'animate-pulse' : '',
             ].join(' ')}
             role={canPick ? 'button' : undefined}
             aria-label={canPick ? `اختر حرف ${letter}` : undefined}
           >
+            {inWin && winTeam && (
+              <polygon
+                points={hexPoints(x, y, S)}
+                fill="none"
+                stroke={TEAM_DEEP[winTeam]}
+                strokeWidth={30}
+                strokeLinejoin="round"
+                opacity={0.6}
+              />
+            )}
             <polygon
-              points={hexPoints(cx, cy, S)}
+              points={hexPoints(x, y, S)}
               fill={fill}
               stroke={stroke}
               strokeWidth={strokeWidth}
@@ -101,8 +182,8 @@ function HexGridImpl({
             />
             {!muted && (
               <text
-                x={cx}
-                y={cy}
+                x={x}
+                y={y}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fontSize={86}

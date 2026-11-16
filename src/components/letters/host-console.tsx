@@ -32,12 +32,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { HexBadge } from '@/components/letters/hex-grid'
+import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import {
   ANSWER_TIME_OPTIONS,
   CHOOSE_TIME_OPTIONS,
   TEAM_COLORS,
   TEAM_LABELS,
+  TEAM_MISSIONS,
   type LettersState,
   type LettersTeam,
 } from '@/lib/letters-types'
@@ -154,6 +155,20 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
         )}
       </div>
 
+      {/* Mission legend */}
+      {state.phase !== 'lobby' && (
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+          <span className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-amber-800">
+            <span className="inline-block size-3 rounded-sm bg-amber-400" aria-hidden="true" />
+            الفريق الأول: {TEAM_MISSIONS.A}
+          </span>
+          <span className="flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 px-2.5 py-1 text-red-700">
+            <span className="inline-block size-3 rounded-sm bg-red-400" aria-hidden="true" />
+            الفريق الثاني: {TEAM_MISSIONS.B}
+          </span>
+        </div>
+      )}
+
       {/* Lobby: setup */}
       {state.phase === 'lobby' ? (
         <Card className="rounded-3xl border-2">
@@ -252,23 +267,31 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                 <CardTitle className="text-lg">افتح الدور لأحد الفريقين</CardTitle>
                 <CardDescription>{state.lastEvent}</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-3">
-                <Button
-                  size="lg"
-                  className="h-16 rounded-2xl bg-gradient-to-b from-amber-400 to-amber-500 text-lg font-black text-amber-950 shadow-[0_6px_0_#92400e] hover:from-amber-300"
-                  onClick={() => act('letters:open_turn', { team: 'A' })}
-                >
-                  <Play className="size-5" aria-hidden="true" />
-                  {TEAM_LABELS.A}
-                </Button>
-                <Button
-                  size="lg"
-                  className="h-16 rounded-2xl bg-gradient-to-b from-red-400 to-red-500 text-lg font-black text-white shadow-[0_6px_0_#991b1b] hover:from-red-300"
-                  onClick={() => act('letters:open_turn', { team: 'B' })}
-                >
-                  <Play className="size-5" aria-hidden="true" />
-                  {TEAM_LABELS.B}
-                </Button>
+              <CardContent className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    size="lg"
+                    className="h-16 rounded-2xl bg-gradient-to-b from-amber-400 to-amber-500 text-lg font-black text-amber-950 shadow-[0_6px_0_#92400e] hover:from-amber-300"
+                    onClick={() => act('letters:open_turn', { team: 'A' })}
+                  >
+                    <Play className="size-5" aria-hidden="true" />
+                    {TEAM_LABELS.A}
+                  </Button>
+                  <Button
+                    size="lg"
+                    className="h-16 rounded-2xl bg-gradient-to-b from-red-400 to-red-500 text-lg font-black text-white shadow-[0_6px_0_#991b1b] hover:from-red-300"
+                    onClick={() => act('letters:open_turn', { team: 'B' })}
+                  >
+                    <Play className="size-5" aria-hidden="true" />
+                    {TEAM_LABELS.B}
+                  </Button>
+                </div>
+                <HexGrid
+                  layout={state.layout}
+                  claimed={state.claimed}
+                  selectable={null}
+                  className="mx-auto h-auto w-full max-w-sm"
+                />
               </CardContent>
             </Card>
           )}
@@ -364,6 +387,40 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                 )}
                 <Button variant="outline" className="rounded-xl" onClick={() => act('letters:cancel_round')}>
                   إلغاء الجولة
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {state.phase === 'game_over' && (
+            <Card className="rounded-3xl border-4 border-emerald-300">
+              <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
+                <Trophy
+                  className="size-12 text-amber-500 drop-shadow"
+                  aria-hidden="true"
+                />
+                <p className="text-2xl font-black">
+                  {TEAM_LABELS[state.gameWinner ?? 'A']} يفوز باللعبة!
+                </p>
+                <p className="text-sm font-bold text-emerald-700">وصّل شريطيه بالخلايا — مبروك!</p>
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  {state.winPath.map(letter => (
+                    <HexBadge
+                      key={letter}
+                      fill={TEAM_COLORS[state.gameWinner ?? 'A'].fill}
+                      label={letter}
+                      className="size-9"
+                      fontSize={38}
+                    />
+                  ))}
+                </div>
+                <Button
+                  size="lg"
+                  className="mt-1 h-14 rounded-2xl bg-purple-700 text-lg font-black hover:bg-purple-800"
+                  onClick={() => act('letters:new_game')}
+                >
+                  <RotateCcw className="size-5" aria-hidden="true" />
+                  لعبة جديدة (لوحة وعشرات جديدة)
                 </Button>
               </CardContent>
             </Card>
