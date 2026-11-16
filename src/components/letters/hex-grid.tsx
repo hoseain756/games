@@ -5,19 +5,22 @@ import type { LettersTeam } from '@/lib/letters-types'
 
 // ---------------------------------------------------------------------------
 // Hex CONNECTION board — 5 rows x 5 letters, ALTERNATING honeycomb (odd rows
-// shifted right by half a cell), matching the reference design:
-// a full-bleed colored frame where the TOP + BOTTOM bands are the Team A
-// green and the LEFT + RIGHT sides are the Team B orange, with diagonal
-// corner cuts. Claimed cells take the answering team's color; the winning
-// chain glows on victory.
+// pushed right by half a cell space, even rows normal), matching the reference
+// design. Every letter is sealed INSIDE a padded square box, and each square
+// box is split by an X (both diagonals) into 4 triangles: the two opposite
+// triangles pointing up/down carry Team A's green, and the two opposite
+// triangles pointing left/right carry Team B's orange — the same X-split as
+// the full-bleed frame behind the board (green top + bottom bands, orange
+// left + right sides). Claimed cells take the answering team's color inside
+// their hexagon; the winning chain glows on victory.
 // ---------------------------------------------------------------------------
 
 const PURPLE_BORDER = '#7c3aad'
 const PURPLE_LETTER = '#6d28d9'
 /** Exact colors sampled from the reference image. */
-const GREEN = '#3bb316' // Team A — top + bottom bands
+const GREEN = '#3bb316' // Team A — top + bottom (of every box and of the frame)
 const GREEN_DEEP = '#276b12'
-const ORANGE = '#ff7836' // Team B — left + right bands
+const ORANGE = '#ff7836' // Team B — left + right (of every box and of the frame)
 const ORANGE_DEEP = '#c2410c'
 const TEAM_FILL: Record<LettersTeam, string> = { A: GREEN, B: ORANGE }
 const TEAM_DEEP: Record<LettersTeam, string> = { A: GREEN_DEEP, B: ORANGE_DEEP }
@@ -26,31 +29,28 @@ const ACTIVE_RING = '#fde047'
 /** Isolated forms that read better on the board. */
 const LETTER_DISPLAY: Record<string, string> = { ه: 'هـ' }
 
-const S = 100 // hex radius (center -> vertex)
-const W = Math.sqrt(3) * S // hex width
-const GAP = 1.04 // spacing multiplier -> small gaps between cells
-const SX = W * GAP
-const SY = 1.5 * S * GAP * 1.1 // slight vertical stretch, like the reference
+const L = 100 // square box side (each cell lives inside one box)
+const R = 40 // hexagon radius -> padding between the hexagon and its box
 const COLS = 5
 const ROWS = 5
-const PAD_X = 140 // side margin = the visible orange band width
-const PAD_Y = 36 // top/bottom margin above the first row of cells
+const PAD_X = 95 // side margin = the visible orange band width
+const PAD_Y = 72 // top/bottom margin above the first row of boxes
 
-// Odd rows are shifted RIGHT by half a cell (staggered honeycomb).
-const cellCx = (row: number, col: number) =>
-  PAD_X + W / 2 + col * SX + (row % 2 === 1 ? SX / 2 : 0)
-const cellCy = (row: number) => PAD_Y + S + row * SY
+// Odd rows (2nd and 4th) are pushed RIGHT by half a cell space; even rows sit
+// normally — the staggered honeycomb silhouette of the reference image.
+const boxX = (row: number, col: number) =>
+  PAD_X + col * L + (row % 2 === 1 ? L / 2 : 0)
+const boxY = (row: number) => PAD_Y + row * L
 
-// Board extremes (odd rows protrude right by half a cell).
-const MAX_X = PAD_X + W + (COLS - 1) * SX + SX / 2
-const MAX_Y = PAD_Y + 2 * S + (ROWS - 1) * SY
-
-const VIEW_W = MAX_X + PAD_X
-const VIEW_H = MAX_Y + PAD_Y
+// Board extremes (odd rows protrude right by half a box).
+const CONTENT_W = COLS * L + L / 2
+const CONTENT_H = ROWS * L
+const VIEW_W = CONTENT_W + 2 * PAD_X
+const VIEW_H = CONTENT_H + 2 * PAD_Y
 
 // Green band geometry: straight edge depth + diagonal corner runs.
-const BAND_H = 96
-const DIAG = 130
+const BAND_H = 108
+const DIAG = 148
 
 function hexPoints(cx: number, cy: number, r: number): string {
   const points: string[] = []
@@ -113,8 +113,13 @@ function HexGridImpl({
       {layout.map((letter, index) => {
         const row = Math.floor(index / COLS)
         const col = index % COLS
-        const x = cellCx(row, col)
-        const y = cellCy(row)
+        const x0 = boxX(row, col)
+        const y0 = boxY(row)
+        const x1 = x0 + L
+        const y1 = y0 + L
+        const cx = x0 + L / 2
+        const cy = y0 + L / 2
+
         const owner = claimed?.[letter]
         const isActive = activeLetter === letter
         const canPick = selectable?.has(letter) === true
@@ -123,7 +128,7 @@ function HexGridImpl({
         const fill = owner ? TEAM_FILL[owner] : '#ffffff'
         const highlight = isActive && !inWin
         const stroke = highlight ? ACTIVE_RING : PURPLE_BORDER
-        const strokeWidth = highlight ? 16 : 9
+        const strokeWidth = highlight ? 8 : 6
 
         return (
           <g
@@ -133,28 +138,35 @@ function HexGridImpl({
             role={canPick ? 'button' : undefined}
             aria-label={canPick ? `اختر حرف ${letter}` : undefined}
           >
+            {/* Square box split by an X into 4 triangles:
+                top + bottom triangles = Team A green, left + right = Team B orange */}
+            <polygon points={`${x0},${y0} ${x1},${y0} ${cx},${cy}`} fill={GREEN} />
+            <polygon points={`${x0},${y1} ${x1},${y1} ${cx},${cy}`} fill={GREEN} />
+            <polygon points={`${x0},${y0} ${x0},${y1} ${cx},${cy}`} fill={ORANGE} />
+            <polygon points={`${x1},${y0} ${x1},${y1} ${cx},${cy}`} fill={ORANGE} />
+
             {isActive && !inWin && (
               <polygon
-                points={hexPoints(x, y, S)}
+                points={hexPoints(cx, cy, R)}
                 fill="none"
                 stroke={ACTIVE_RING}
-                strokeWidth={30}
+                strokeWidth={14}
                 strokeLinejoin="round"
                 className="animate-pulse"
               />
             )}
             {inWin && winTeam && (
               <polygon
-                points={hexPoints(x, y, S)}
+                points={hexPoints(cx, cy, R)}
                 fill="none"
                 stroke={TEAM_DEEP[winTeam]}
-                strokeWidth={30}
+                strokeWidth={14}
                 strokeLinejoin="round"
                 opacity={0.6}
               />
             )}
             <polygon
-              points={hexPoints(x, y, S)}
+              points={hexPoints(cx, cy, R)}
               fill={fill}
               stroke={stroke}
               strokeWidth={strokeWidth}
@@ -162,11 +174,11 @@ function HexGridImpl({
             />
             {!muted && (
               <text
-                x={x}
-                y={y}
+                x={cx}
+                y={cy}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize={86}
+                fontSize={38}
                 fontWeight={800}
                 fill={owner ? '#ffffff' : PURPLE_LETTER}
                 style={{ userSelect: 'none' }}
