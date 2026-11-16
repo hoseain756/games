@@ -32,25 +32,28 @@ const W = Math.sqrt(3) * R // hexagon width = horizontal pitch (no gaps)
 const ROW_H = 1.5 * R // vertical pitch of a packed honeycomb
 const COLS = 5
 const ROWS = 5
-const PAD_X = 150 // side margin = the visible orange band width
-const PAD_Y = 70 // top/bottom margin above the first row of cells
+// ONE uniform padding on all four sides of the big box, so the cell cluster
+// sits exactly in the middle of it (equal margin left/right/top/bottom).
+const PAD = 110
 
 // Odd rows (2nd and 4th) are pushed RIGHT by half a cell space; even rows sit
 // normally — the staggered honeycomb silhouette of the reference image.
 const cellCx = (row: number, col: number) =>
-  PAD_X + W / 2 + col * W + (row % 2 === 1 ? W / 2 : 0)
-const cellCy = (row: number) => PAD_Y + R + row * ROW_H
+  PAD + W / 2 + col * W + (row % 2 === 1 ? W / 2 : 0)
+const cellCy = (row: number) => PAD + R + row * ROW_H
 
 // Board extremes (odd rows protrude right by half a cell).
-const MAX_X = PAD_X + (COLS + 0.5) * W
-const MAX_Y = PAD_Y + R + (ROWS - 1) * ROW_H + R
+const MAX_X = PAD + (COLS + 0.5) * W
+const MAX_Y = PAD + R + (ROWS - 1) * ROW_H + R
 
 const VIEW_W = MAX_X
 const VIEW_H = MAX_Y
 
-// Green band geometry: straight edge depth + diagonal corner runs.
-const BAND_H = 112
-const DIAG = 145
+// Green band geometry: straight edge depth + diagonal corner runs. The bands
+// run slightly deeper than PAD so the top/bottom rows nestle into the green,
+// exactly like the reference image.
+const BAND_H = 148
+const DIAG = 155
 
 function hexPoints(cx: number, cy: number, r: number): string {
   const points: string[] = []
