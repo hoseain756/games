@@ -426,11 +426,6 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                 <p className="rounded-2xl bg-purple-50 p-4 text-xl font-extrabold leading-relaxed text-purple-900">
                   {state.question.q}
                 </p>
-                {state.lastAnswerText && (
-                  <p className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-2.5 text-base font-black text-amber-800">
-                    جواب الفريق المكتوب: «{state.lastAnswerText}»
-                  </p>
-                )}
                 <p className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 text-xl font-black text-emerald-700">
                   الجواب: {state.question.a}
                 </p>
