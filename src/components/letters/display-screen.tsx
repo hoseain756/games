@@ -3,6 +3,7 @@
 import { Hourglass, Lightbulb, MonitorPlay, Trophy, Users } from 'lucide-react'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import {
+  DIFFICULTY_STYLES,
   TEAM_COLORS,
   TEAM_LABELS,
   TEAM_MISSIONS,
@@ -167,10 +168,26 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
           {/* Question */}
           {state.question ? (
             <div className="rounded-2xl bg-white p-[clamp(0.75rem,2vmin,1.25rem)] text-purple-900 shadow-inner">
-              <p className="flex items-center gap-2 text-fluid-xs font-extrabold text-purple-500">
-                <Lightbulb className="size-[clamp(0.85rem,2vmin,1.15rem)] shrink-0" aria-hidden="true" />
-                السؤال — حرف {state.question.letter}
-              </p>
+              <div className="flex flex-wrap items-center gap-[clamp(0.35rem,1vmin,0.6rem)]">
+                <p className="flex items-center gap-2 text-fluid-xs font-extrabold text-purple-500">
+                  <Lightbulb className="size-[clamp(0.85rem,2vmin,1.15rem)] shrink-0" aria-hidden="true" />
+                  السؤال — حرف {state.question.letter}
+                </p>
+                {state.question.category && (
+                  <span className="rounded-full bg-purple-100 px-[clamp(0.4rem,1.2vmin,0.7rem)] py-[clamp(0.1rem,0.4vmin,0.25rem)] text-fluid-2xs font-extrabold text-purple-700">
+                    {state.question.category}
+                  </span>
+                )}
+                {state.question.difficulty && (
+                  <span
+                    className={`rounded-full border px-[clamp(0.4rem,1.2vmin,0.7rem)] py-[clamp(0.1rem,0.4vmin,0.25rem)] text-fluid-2xs font-extrabold ${
+                      DIFFICULTY_STYLES[state.question.difficulty] ?? 'bg-purple-100 text-purple-700 border-purple-300'
+                    }`}
+                  >
+                    {state.question.difficulty}
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-fluid-md font-extrabold leading-snug">{state.question.q}</p>
               {state.question.a && state.phase === 'round_end' ? (
                 <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-fluid-sm font-black text-emerald-700">

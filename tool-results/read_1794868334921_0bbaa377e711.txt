@@ -1,0 +1,739 @@
+    60→  /** Pending host-absence deletion timer. */
+    61→  deleteTimer: ReturnType<typeof setTimeout> | null
+    62→}
+    63→
+    64→/** socket.id -> membership info, used for clean disconnect handling. */
+    65→interface SocketInfo {
+    66→  code: string
+    67→  role: 'host' | 'player'
+    68→  playerId?: string
+    69→}
+    70→
+    71→// ---------------------------------------------------------------------------
+    72→// Limits / constants
+    73→// ---------------------------------------------------------------------------
+    74→
+    75→const PORT = 3003 // hardcoded on purpose (Caddy gateway forwards here)
+    76→const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no 0/O/1/I/L
+    77→const CODE_LENGTH = 4
+    78→const MAX_PLAYERS = 20
+    79→const MAX_QUESTIONS = 500
+    80→const MAX_QUESTIONS_PER_PLAYER = 30
+    81→const QUESTION_MAX_LEN = 200
+    82→const NAME_MAX_LEN = 30
+    83→const SELFIE_MAX_LEN = 300000
+    84→const HOST_GRACE_MS = 90_000
+    85→const CLEANUP_INTERVAL_MS = 60_000
+    86→const ROOM_TTL_MS = 10 * 60 * 1000
+    87→
+    88→const MSG = {
+    89→  ROOM_EXPIRED: 'انتهت صلاحية الغرفة',
+    90→  ROOM_NOT_FOUND: 'الغرفة غير موجودة، تأكد من الرمز',
+    91→  GAME_ALREADY_STARTED: 'اللعبة بدأت بالفعل',
+    92→  NAME_TAKEN: 'الاسم مستخدم، اختر اسماً آخر',
+    93→  ROOM_FULL: 'الغرفة ممتلئة',
+    94→  BAG_REFILLED: 'انتهت الأسئلة، نعيد خلطها',
+    95→  UNAUTHORIZED: 'غير مصرح',
+    96→  INVALID_NAME: 'الاسم غير صالح',
+    97→  INVALID_DATA: 'بيانات غير صالحة',
+    98→  SELFIE_TOO_LARGE: 'حجم الصورة كبير جداً',
+    99→  UNEXPECTED_ERROR: 'حدث خطأ غير متوقع',
+   100→} as const
+   101→
+   102→// ---------------------------------------------------------------------------
+   103→// Server & in-memory state
+   104→// ---------------------------------------------------------------------------
+   105→
+   106→const httpServer = createServer()
+   107→const io = new Server(httpServer, {
+   108→  path: '/', // DO NOT change, used by Caddy gateway
+   109→  cors: { origin: '*', methods: ['GET', 'POST'] },
+   110→  pingTimeout: 60000,
+   111→  pingInterval: 25000,
+   112→})
+   113→
+   114→const rooms = new Map<string, Room>()
+   115→const socketRooms = new Map<string, SocketInfo>() // socket.id -> { code, role, playerId? }
+   116→
+   117→// ---------------------------------------------------------------------------
+   118→// Small utilities
+   119→// ---------------------------------------------------------------------------
+   120→
+   121→function shuffle<T>(a: T[]): T[] {
+   122→  const r = a.slice()
+   123→  for (let i = r.length - 1; i > 0; i--) {
+   124→    const j = Math.floor(Math.random() * (i + 1));
+   125→    [r[i], r[j]] = [r[j], r[i]]
+   126→  }
+   127→  return r
+   128→}
+   129→
+   130→function asRecord(v: unknown): Record<string, unknown> {
+   131→  return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {}
+   132→}
+   133→
+   134→function asString(v: unknown): string {
+   135→  return typeof v === 'string' ? v : ''
+   136→}
+   137→
+   138→function normalizeCode(v: unknown): string {
+   139→  return asString(v).trim().toUpperCase()
+   140→}
+   141→
+   142→/** Clean + validate a raw questions array: 1..500 strings, each trimmed 1..200 chars. */
+   143→function cleanQuestions(raw: unknown): string[] {
+   144→  if (!Array.isArray(raw)) return []
+   145→  const out: string[] = []
+   146→  for (const item of raw) {
+   147→    if (typeof item !== 'string') continue
+   148→    const trimmed = item.trim()
+   149→    if (trimmed.length >= 1 && trimmed.length <= QUESTION_MAX_LEN) out.push(trimmed)
+   150→    if (out.length >= MAX_QUESTIONS) break
+   151→  }
+   152→  return out
+   153→}
+   154→
+   155→/** Clean + validate ONE player's question list: 1..30 unique questions. */
+   156→function cleanPlayerQuestions(raw: unknown): string[] {
+   157→  if (!Array.isArray(raw)) return []
+   158→  const out: string[] = []
+   159→  for (const item of raw) {
+   160→    if (typeof item !== 'string') continue
+   161→    const trimmed = item.trim()
+   162→    if (trimmed.length >= 1 && trimmed.length <= QUESTION_MAX_LEN && !out.includes(trimmed)) {
+   163→      out.push(trimmed)
+   164→    }
+   165→    if (out.length >= MAX_QUESTIONS_PER_PLAYER) break
+   166→  }
+   167→  return out
+   168→}
+   169→
+   170→/** Random unique 4-char room code among active rooms. */
+   171→function generateRoomCode(): string {
+   172→  let code = ''
+   173→  do {
+   174→    code = ''
+   175→    for (let i = 0; i < CODE_LENGTH; i++) {
+   176→      code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+   177→    }
+   178→  } while (rooms.has(code))
+   179→  return code
+   180→}
+   181→
+   182→// ---------------------------------------------------------------------------
+   183→// Room helpers
+   184→// ---------------------------------------------------------------------------
+   185→
+   186→function publicPlayerById(room: Room, playerId: string | null | undefined): PublicPlayer | null {
+   187→  if (!playerId) return null
+   188→  return room.players.find(p => p.id === playerId) ?? null
+   189→}
+   190→
+   191→function turnPayload(room: Room) {
+   192→  return {
+   193→    round: room.round,
+   194→    turnNo: room.idx + 1,
+   195→    total: room.order.length,
+   196→    currentPlayer: publicPlayerById(room, room.order[room.idx]),
+   197→  }
+   198→}
+   199→
+   200→function emitLobbyUpdate(room: Room) {
+   201→  io.to(room.code).emit('lobby:update', { players: room.players, state: room.state })
+   202→}
+   203→
+   204→/** Private question delivery: always to the CURRENT socket id of the turn player. */
+   205→function sendQuestionToCurrentPlayer(room: Room) {
+   206→  const playerId = room.order[room.idx]
+   207→  if (!playerId || room.currentQuestion === null) return
+   208→  const socketId = room.playerSockets.get(playerId)
+   209→  if (!socketId) return // player currently disconnected; they receive it on rejoin
+   210→  io.to(socketId).emit('player:question', { text: room.currentQuestion })
+   211→}
+   212→
+   213→/** Delete a room and clean every map / socket.io membership related to it. */
+   214→function deleteRoom(code: string) {
+   215→  const room = rooms.get(code)
+   216→  if (!room) return
+   217→  if (room.deleteTimer) {
+   218→    clearTimeout(room.deleteTimer)
+   219→    room.deleteTimer = null
+   220→  }
+   221→  rooms.delete(code)
+   222→  for (const [socketId, info] of Array.from(socketRooms.entries())) {
+   223→    if (info.code === code) socketRooms.delete(socketId)
+   224→  }
+   225→  io.in(code).socketsLeave(code)
+   226→  console.log(`[game-service] room ${code} deleted`)
+   227→}
+   228→
+   229→/** Remove a player from players/order/socket maps (explicit leaves). */
+   230→function removePlayerFromRoom(room: Room, playerId: string) {
+   231→  const playerIdx = room.players.findIndex(p => p.id === playerId)
+   232→  if (playerIdx !== -1) room.players.splice(playerIdx, 1)
+   233→  const orderIdx = room.order.indexOf(playerId)
+   234→  if (orderIdx !== -1) {
+   235→    room.order.splice(orderIdx, 1)
+   236→    if (orderIdx < room.idx) room.idx--
+   237→    if (room.idx >= room.order.length) room.idx = 0
+   238→  }
+   239→  room.playerSockets.delete(playerId)
+   240→  room.submissions.delete(playerId)
+   241→}
+   242→
+   243→/** If this socket is mapped as a player in some other room, detach it cleanly. */
+   244→function detachFromPreviousRoom(socket: Socket, exceptCode?: string) {
+   245→  const info = socketRooms.get(socket.id)
+   246→  if (!info || info.role !== 'player' || !info.playerId) return
+   247→  if (exceptCode && info.code === exceptCode) return
+   248→  const previous = rooms.get(info.code)
+   249→  socketRooms.delete(socket.id)
+   250→  if (!previous) return
+   251→  removePlayerFromRoom(previous, info.playerId)
+   252→  socket.leave(previous.code)
+   253→  emitLobbyUpdate(previous)
+   254→}
+   255→
+   256→/** Guard for host-only events: resolves the room or emits an error. */
+   257→function requireHost(socket: Socket): Room | null {
+   258→  const info = socketRooms.get(socket.id)
+   259→  const room = info ? rooms.get(info.code) : undefined
+   260→  if (!room) {
+   261→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   262→    return null
+   263→  }
+   264→  if (room.hostSocketId !== socket.id) {
+   265→    socket.emit('room:error', { message: MSG.UNAUTHORIZED })
+   266→    return null
+   267→  }
+   268→  return room
+   269→}
+   270→
+   271→// ---------------------------------------------------------------------------
+   272→// Question selection
+   273→// ---------------------------------------------------------------------------
+   274→
+   275→function pickQuestion(room: Room) {
+   276→  const qs = room.questions
+   277→  if (!qs.length) return // defensive: pool is guaranteed non-empty at start
+   278→  if (room.opts.norepeat) {
+   279→    if (!room.bag.length) {
+   280→      room.bag = shuffle(qs)
+   281→      if (room.bag.length > 1 && room.bag[room.bag.length - 1] === room.currentQuestion) {
+   282→        room.bag.unshift(room.bag.pop() as string)
+   283→      }
+   284→      if (room.round > 1 || room.idx > 0) {
+   285→        io.to(room.code).emit('toast', { message: MSG.BAG_REFILLED })
+   286→      }
+   287→    }
+   288→    room.currentQuestion = room.bag.pop() as string
+   289→  } else {
+   290→    let q = qs[Math.floor(Math.random() * qs.length)]
+   291→    let guard = 0
+   292→    while (qs.length > 1 && q === room.currentQuestion && guard++ < 25) {
+   293→      q = qs[Math.floor(Math.random() * qs.length)]
+   294→    }
+   295→    room.currentQuestion = q
+   296→  }
+   297→}
+   298→
+   299→/** pickQuestion, but guarantees the new question differs from the current one. */
+   300→function rerollQuestion(room: Room) {
+   301→  if (room.questions.length <= 1) {
+   302→    pickQuestion(room) // nothing else to show with a single question
+   303→    return
+   304→  }
+   305→  const previous = room.currentQuestion
+   306→  for (let attempt = 0; attempt < 20; attempt++) {
+   307→    pickQuestion(room)
+   308→    if (room.currentQuestion !== previous) return
+   309→  }
+   310→  // Still identical after 20 tries — force a different one / reshuffle the bag.
+   311→  if (room.opts.norepeat) {
+   312→    const rest = shuffle(room.questions.filter(q => q !== previous))
+   313→    room.bag = rest.length > 0 ? rest : shuffle(room.questions)
+   314→    room.currentQuestion = room.bag.pop() as string
+   315→  } else {
+   316→    const others = room.questions.filter(q => q !== previous)
+   317→    const pool = others.length > 0 ? others : room.questions
+   318→    room.currentQuestion = pool[Math.floor(Math.random() * pool.length)]
+   319→  }
+   320→}
+   321→
+   322→// ---------------------------------------------------------------------------
+   323→// Event handlers (client -> server)
+   324→// ---------------------------------------------------------------------------
+   325→
+   326→function onHostCreate(socket: Socket, payload: unknown) {
+   327→  const body = asRecord(payload)
+   328→  // Questions are no longer required from the host — every player writes his
+   329→  // own list from his phone; the pool is built when everyone is done.
+   330→  const questions = cleanQuestions(body.questions)
+   331→  const optsRecord = asRecord(body.opts)
+   332→  const opts: GameOptions = {
+   333→    norepeat: optsRecord.norepeat === true,
+   334→    shuffle: optsRecord.shuffle === true,
+   335→  }
+   336→  const code = generateRoomCode()
+   337→  const room: Room = {
+   338→    code,
+   339→    hostSocketId: socket.id,
+   340→    questions,
+   341→    opts,
+   342→    state: 'lobby',
+   343→    players: [],
+   344→    submissions: new Map(),
+   345→    order: [],
+   346→    idx: 0,
+   347→    round: 1,
+   348→    bag: [],
+   349→    currentQuestion: null,
+   350→    lastActivity: Date.now(),
+   351→    peeking: false,
+   352→    playerSockets: new Map(),
+   353→    deleteTimer: null,
+   354→  }
+   355→  rooms.set(code, room)
+   356→  socket.join(code)
+   357→  socketRooms.set(socket.id, { code, role: 'host' })
+   358→  console.log(`[game-service] room ${code} created by host ${socket.id} (shuffle=${opts.shuffle}, norepeat=${opts.norepeat})`)
+   359→  socket.emit('room:created', { code, state: 'lobby', questions, opts })
+   360→}
+   361→
+   362→function onHostReconnect(socket: Socket, payload: unknown) {
+   363→  const code = normalizeCode(asRecord(payload).code)
+   364→  const room = code ? rooms.get(code) : undefined
+   365→  if (!room) {
+   366→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   367→    return
+   368→  }
+   369→  room.hostSocketId = socket.id
+   370→  if (room.deleteTimer) {
+   371→    clearTimeout(room.deleteTimer)
+   372→    room.deleteTimer = null
+   373→  }
+   374→  socket.join(code)
+   375→  socketRooms.set(socket.id, { code, role: 'host' })
+   376→  room.lastActivity = Date.now()
+   377→  console.log(`[game-service] host reconnected to room ${code} (${socket.id}, state=${room.state})`)
+   378→  socket.emit('room:created', { code: room.code, state: room.state, questions: room.questions, opts: room.opts })
+   379→  socket.emit('lobby:update', { players: room.players, state: room.state })
+   380→  if (room.state === 'playing') {
+   381→    socket.emit('game:turn', turnPayload(room))
+   382→  }
+   383→}
+   384→
+   385→function onPlayerJoin(socket: Socket, payload: unknown) {
+   386→  const body = asRecord(payload)
+   387→  const code = normalizeCode(body.code)
+   388→  const playerId = asString(body.playerId).trim()
+   389→  const name = asString(body.name).trim()
+   390→  const selfie = asString(body.selfie)
+   391→
+   392→  const room = code ? rooms.get(code) : undefined
+   393→  if (!room) {
+   394→    socket.emit('room:error', { message: MSG.ROOM_NOT_FOUND })
+   395→    return
+   396→  }
+   397→  room.lastActivity = Date.now()
+   398→  if (!playerId || playerId.length > 128) {
+   399→    socket.emit('room:error', { message: MSG.INVALID_DATA })
+   400→    return
+   401→  }
+   402→  if (!name || name.length > NAME_MAX_LEN) {
+   403→    socket.emit('room:error', { message: MSG.INVALID_NAME })
+   404→    return
+   405→  }
+   406→  if (selfie.length > SELFIE_MAX_LEN) {
+   407→    socket.emit('room:error', { message: MSG.SELFIE_TOO_LARGE })
+   408→    return
+   409→  }
+   410→
+   411→  // Defensive: if this socket is still mapped as a player in another room, detach first.
+   412→  detachFromPreviousRoom(socket, code)
+   413→
+   414→  const existing = room.players.find(p => p.id === playerId)
+   415→
+   416→  if (room.state === 'playing') {
+   417→    // During a game only a known player may rejoin.
+   418→    if (!existing) {
+   419→      socket.emit('room:error', { message: MSG.GAME_ALREADY_STARTED })
+   420→      return
+   421→    }
+   422→    existing.connected = true
+   423→    room.playerSockets.set(playerId, socket.id)
+   424→    socketRooms.set(socket.id, { code, role: 'player', playerId })
+   425→    socket.join(code)
+   426→    socket.emit('player:joined-ok', { name: existing.name, state: 'playing', ready: existing.ready })
+   427→    // Give the rejoining player the full turn context so the UI can render.
+   428→    socket.emit('game:turn', turnPayload(room))
+   429→    if (room.order[room.idx] === playerId && room.currentQuestion !== null) {
+   430→      socket.emit('player:question', { text: room.currentQuestion })
+   431→    }
+   432→    emitLobbyUpdate(room)
+   433→    console.log(`[game-service] player "${existing.name}" rejoined playing room ${code}`)
+   434→    return
+   435→  }
+   436→
+   437→  // state === 'lobby'
+   438→  if (existing) {
+   439→    // Same player refreshing / rejoining: update details and remap the socket.
+   440→    existing.name = name
+   441→    existing.selfie = selfie
+   442→    existing.connected = true
+   443→    room.playerSockets.set(playerId, socket.id)
+   444→    socketRooms.set(socket.id, { code, role: 'player', playerId })
+   445→    socket.join(code)
+   446→    socket.emit('player:joined-ok', { name, state: 'lobby', ready: existing.ready })
+   447→    emitLobbyUpdate(room)
+   448→    console.log(`[game-service] player "${name}" re-joined lobby ${code}`)
+   449→    return
+   450→  }
+   451→
+   452→  const nameTaken = room.players.some(p => p.connected && p.name === name)
+   453→  if (nameTaken) {
+   454→    socket.emit('room:error', { message: MSG.NAME_TAKEN })
+   455→    return
+   456→  }
+   457→  if (room.players.length >= MAX_PLAYERS) {
+   458→    socket.emit('room:error', { message: MSG.ROOM_FULL })
+   459→    return
+   460→  }
+   461→  const player: PublicPlayer = { id: playerId, name, selfie, connected: true, ready: false }
+   462→  room.players.push(player)
+   463→  room.playerSockets.set(playerId, socket.id)
+   464→  socketRooms.set(socket.id, { code, role: 'player', playerId })
+   465→  socket.join(code)
+   466→  socket.emit('player:joined-ok', { name, state: 'lobby', ready: false })
+   467→  emitLobbyUpdate(room)
+   468→  console.log(`[game-service] player "${name}" joined room ${code} (${room.players.length}/${MAX_PLAYERS})`)
+   469→}
+   470→
+   471→function onPlayerLeave(socket: Socket) {
+   472→  const info = socketRooms.get(socket.id)
+   473→  if (!info || info.role !== 'player' || !info.playerId) return
+   474→  const room = rooms.get(info.code)
+   475→  socketRooms.delete(socket.id)
+   476→  if (!room) return
+   477→  removePlayerFromRoom(room, info.playerId)
+   478→  socket.leave(room.code)
+   479→  room.lastActivity = Date.now()
+   480→  console.log(`[game-service] player "${info.playerId}" left room ${room.code}`)
+   481→  emitLobbyUpdate(room)
+   482→  tryAutoStart(room)
+   483→}
+   484→
+   485→/**
+   486→ * Build the question pool from every player's submission and start the game.
+   487→ * Only called when ALL connected players are ready.
+   488→ */
+   489→function startGame(room: Room) {
+   490→  const pool: string[] = []
+   491→  for (const player of room.players) {
+   492→    const list = room.submissions.get(player.id)
+   493→    if (list) pool.push(...list)
+   494→  }
+   495→  room.questions = pool
+   496→  room.state = 'playing'
+   497→  const ids = room.players.map(p => p.id) // join order
+   498→  room.order = room.opts.shuffle ? shuffle(ids) : ids
+   499→  room.idx = 0
+   500→  room.round = 1
+   501→  room.bag = []
+   502→  pickQuestion(room)
+   503→  io.to(room.code).emit('game:turn', turnPayload(room))
+   504→  sendQuestionToCurrentPlayer(room)
+   505→  console.log(`[game-service] room ${room.code} auto-started (${room.order.length} players, pool of ${pool.length} questions)`)
+   506→}
+   507→
+   508→/** Auto-start once at least two players are connected and ALL of them are ready. */
+   509→function tryAutoStart(room: Room) {
+   510→  if (room.state !== 'lobby') return
+   511→  const connected = room.players.filter(p => p.connected)
+   512→  if (connected.length < 2) return
+   513→  if (!connected.every(p => p.ready)) return
+   514→  startGame(room)
+   515→}
+   516→
+   517→/** A player finished writing his questions on his phone. */
+   518→function onPlayerSubmitQuestions(socket: Socket, payload: unknown) {
+   519→  const info = socketRooms.get(socket.id)
+   520→  if (!info || info.role !== 'player' || !info.playerId) return
+   521→  const room = rooms.get(info.code)
+   522→  if (!room) {
+   523→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   524→    return
+   525→  }
+   526→  if (room.state !== 'lobby') {
+   527→    socket.emit('room:error', { message: MSG.GAME_ALREADY_STARTED })
+   528→    return
+   529→  }
+   530→  const player = room.players.find(p => p.id === info.playerId)
+   531→  if (!player) {
+   532→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   533→    return
+   534→  }
+   535→  if (player.ready) return // already submitted, ignore duplicates
+   536→  const list = cleanPlayerQuestions(asRecord(payload).questions)
+   537→  if (!list.length) {
+   538→    socket.emit('room:error', { message: MSG.INVALID_DATA })
+   539→    return
+   540→  }
+   541→  room.submissions.set(player.id, list)
+   542→  player.ready = true
+   543→  socket.emit('player:submitted', { count: list.length })
+   544→  emitLobbyUpdate(room)
+   545→  console.log(`[game-service] player "${player.name}" submitted ${list.length} question(s) in room ${room.code}`)
+   546→  tryAutoStart(room)
+   547→}
+   548→
+   549→/** Advance to the next player (wraps around and starts a new round). */
+   550→function advanceTurn(room: Room) {
+   551→  room.idx++
+   552→  if (room.idx >= room.order.length) {
+   553→    room.idx = 0
+   554→    room.round++
+   555→    if (room.opts.shuffle) room.order = shuffle(room.order)
+   556→  }
+   557→  pickQuestion(room)
+   558→  io.to(room.code).emit('game:turn', turnPayload(room))
+   559→  sendQuestionToCurrentPlayer(room)
+   560→}
+   561→
+   562→function onHostNext(socket: Socket) {
+   563→  const room = requireHost(socket)
+   564→  if (!room) return
+   565→  if (room.state !== 'playing') return
+   566→  advanceTurn(room)
+   567→}
+   568→
+   569→/** The CURRENT player taps "next" on his own phone to pass the turn. */
+   570→function onPlayerNext(socket: Socket) {
+   571→  const info = socketRooms.get(socket.id)
+   572→  if (!info || info.role !== 'player' || !info.playerId) return
+   573→  const room = rooms.get(info.code)
+   574→  if (!room) {
+   575→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   576→    return
+   577→  }
+   578→  if (room.state !== 'playing') return
+   579→  // Only the player whose turn it is may advance the game.
+   580→  if (room.order[room.idx] !== info.playerId) {
+   581→    socket.emit('room:error', { message: MSG.UNAUTHORIZED })
+   582→    return
+   583→  }
+   584→  const name = publicPlayerById(room, info.playerId)?.name ?? info.playerId
+   585→  console.log(`[game-service] player "${name}" advanced the turn in room ${room.code}`)
+   586→  advanceTurn(room)
+   587→}
+   588→
+   589→function onHostReroll(socket: Socket) {
+   590→  const room = requireHost(socket)
+   591→  if (!room) return
+   592→  if (room.state !== 'playing') return
+   593→  rerollQuestion(room)
+   594→  sendQuestionToCurrentPlayer(room)
+   595→  // If the host is currently peeking, keep his view in sync.
+   596→  if (room.peeking && room.currentQuestion !== null) {
+   597→    io.to(room.hostSocketId).emit('host:question', { text: room.currentQuestion })
+   598→  }
+   599→}
+   600→
+   601→function onHostPeek(socket: Socket) {
+   602→  const room = requireHost(socket)
+   603→  if (!room) return
+   604→  room.peeking = true
+   605→  io.to(room.hostSocketId).emit('host:question', { text: room.currentQuestion })
+   606→}
+   607→
+   608→function onHostHide(socket: Socket) {
+   609→  const room = requireHost(socket)
+   610→  if (!room) return
+   611→  room.peeking = false
+   612→  io.to(room.hostSocketId).emit('host:question', { text: null })
+   613→}
+   614→
+   615→function onHostEnd(socket: Socket) {
+   616→  const room = requireHost(socket)
+   617→  if (!room) return
+   618→  room.state = 'lobby'
+   619→  room.round = 1
+   620→  room.idx = 0
+   621→  room.bag = []
+   622→  room.currentQuestion = null
+   623→  room.peeking = false
+   624→  // New round: everyone writes fresh questions again.
+   625→  room.questions = []
+   626→  room.submissions.clear()
+   627→  for (const player of room.players) player.ready = false
+   628→  console.log(`[game-service] room ${room.code} ended by host, back to lobby (ready flags reset)`)
+   629→  io.to(room.code).emit('game:ended', {})
+   630→  emitLobbyUpdate(room)
+   631→}
+   632→
+   633→function onHostClose(socket: Socket) {
+   634→  const room = requireHost(socket)
+   635→  if (!room) return
+   636→  console.log(`[game-service] room ${room.code} closed by host`)
+   637→  io.to(room.code).emit('room:closed', {})
+   638→  deleteRoom(room.code)
+   639→}
+   640→
+   641→// ---------------------------------------------------------------------------
+   642→// Disconnect handling
+   643→// ---------------------------------------------------------------------------
+   644→
+   645→function handleDisconnect(socket: Socket) {
+   646→  const info = socketRooms.get(socket.id)
+   647→  socketRooms.delete(socket.id)
+   648→  if (!info) return
+   649→  const room = rooms.get(info.code)
+   650→  if (!room) return
+   651→  room.lastActivity = Date.now()
+   652→
+   653→  if (info.role === 'host') {
+   654→    // Ignore stale host sockets (host already reconnected with a new socket).
+   655→    if (room.hostSocketId !== socket.id) return
+   656→    const anyConnectedPlayer = room.players.some(p => p.connected)
+   657→    if (!anyConnectedPlayer) {
+   658→      console.log(`[game-service] host disconnected with no connected players, deleting room ${room.code}`)
+   659→      deleteRoom(room.code)
+   660→      return
+   661→    }
+   662→    io.to(room.code).emit('host:offline', {})
+   663→    if (room.deleteTimer) clearTimeout(room.deleteTimer)
+   664→    room.deleteTimer = setTimeout(() => {
+   665→      room.deleteTimer = null
+   666→      if (rooms.get(room.code) === room) {
+   667→        console.log(`[game-service] host absent for ${HOST_GRACE_MS / 1000}s, deleting room ${room.code}`)
+   668→        deleteRoom(room.code)
+   669→      }
+   670→    }, HOST_GRACE_MS)
+   671→    console.log(`[game-service] host of room ${room.code} disconnected, ${HOST_GRACE_MS / 1000}s grace started`)
+   672→    return
+   673→  }
+   674→
+   675→  if (info.role === 'player' && info.playerId) {
+   676→    const playerId = info.playerId
+   677→    // Only mark disconnected if this socket is still the player's current socket
+   678→    // (a newer socket may have already reconnected).
+   679→    if (room.playerSockets.get(playerId) !== socket.id) return
+   680→    room.playerSockets.delete(playerId)
+   681→    const player = room.players.find(p => p.id === playerId)
+   682→    if (player) {
+   683→      player.connected = false
+   684→      emitLobbyUpdate(room)
+   685→      console.log(`[game-service] player "${player.name}" disconnected from room ${room.code}`)
+   686→      // The leaver might have been the only one blocking the auto-start.
+   687→      tryAutoStart(room)
+   688→    }
+   689→  }
+   690→}
+   691→
+   692→// ---------------------------------------------------------------------------
+   693→// Wiring (every handler wrapped so a throw never crashes the process)
+   694→// ---------------------------------------------------------------------------
+   695→
+   696→type GameEventHandler = (socket: Socket, payload: unknown) => void
+   697→
+   698→function listen(socket: Socket, event: string, handler: GameEventHandler) {
+   699→  socket.on(event, (payload: unknown) => {
+   700→    let roomCodeBefore: string | null = null
+   701→    try {
+   702→      roomCodeBefore = socketRooms.get(socket.id)?.code ?? null
+   703→      handler(socket, payload)
+   704→      const code = socketRooms.get(socket.id)?.code ?? roomCodeBefore
+   705→      if (code) {
+   706→        const room = rooms.get(code)
+   707→        if (room) room.lastActivity = Date.now()
+   708→      }
+   709→    } catch (err) {
+   710→      console.error(`[game-service] unexpected error in "${event}" from ${socket.id}:`, err)
+   711→      try {
+   712→        socket.emit('room:error', { message: MSG.UNEXPECTED_ERROR })
+   713→      } catch {
+   714→        // socket already gone; nothing else to do
+   715→      }
+   716→    }
+   717→  })
+   718→}
+   719→
+   720→io.on('connection', (socket: Socket) => {
+   721→  console.log(`[game-service] socket connected: ${socket.id}`)
+   722→
+   723→  listen(socket, 'host:create', onHostCreate)
+   724→  listen(socket, 'host:reconnect', onHostReconnect)
+   725→  listen(socket, 'player:join', onPlayerJoin)
+   726→  listen(socket, 'player:leave', onPlayerLeave)
+   727→  listen(socket, 'player:submit-questions', onPlayerSubmitQuestions)
+   728→  listen(socket, 'host:next', onHostNext)
+   729→  listen(socket, 'player:next', onPlayerNext)
+   730→  listen(socket, 'host:reroll', onHostReroll)
+   731→  listen(socket, 'host:peek', onHostPeek)
+   732→  listen(socket, 'host:hide', onHostHide)
+   733→  listen(socket, 'host:end', onHostEnd)
+   734→  listen(socket, 'host:close', onHostClose)
+   735→
+   736→  socket.on('disconnect', reason => {
+   737→    try {
+   738→      console.log(`[game-service] socket disconnected: ${socket.id} (${reason})`)
+   739→      handleDisconnect(socket)
+   740→    } catch (err) {
+   741→      console.error('[game-service] error in disconnect handling:', err)
+   742→    }
+   743→  })
+   744→})
+   745→
+   746→// ---------------------------------------------------------------------------
+   747→// Periodic cleanup: remove inactive rooms whose host socket is gone
+   748→// ---------------------------------------------------------------------------
+   749→
+   750→const cleanupTimer = setInterval(() => {
+   751→  const now = Date.now()
+   752→  for (const room of Array.from(rooms.values())) {
+   753→    const hostGone = !io.sockets.sockets.has(room.hostSocketId)
+   754→    if (now - room.lastActivity > ROOM_TTL_MS && hostGone) {
+   755→      console.log(`[game-service] cleaning up inactive room ${room.code}`)
+   756→      deleteRoom(room.code)
+   757→    }
+   758→  }
+   759→}, CLEANUP_INTERVAL_MS)
+   760→cleanupTimer.unref?.()
+   761→
+   762→// ---------------------------------------------------------------------------
+   763→// Graceful shutdown + global error safety nets
+   764→// ---------------------------------------------------------------------------
+   765→
+   766→let shuttingDown = false
+   767→function shutdown(signal: string) {
+   768→  if (shuttingDown) return
+   769→  shuttingDown = true
+   770→  console.log(`[game-service] ${signal} received, shutting down`)
+   771→  clearInterval(cleanupTimer)
+   772→  for (const room of rooms.values()) {
+   773→    if (room.deleteTimer) {
+   774→      clearTimeout(room.deleteTimer)
+   775→      room.deleteTimer = null
+   776→    }
+   777→  }
+   778→  io.close(() => process.exit(0))
+   779→  setTimeout(() => process.exit(0), 2000).unref()
+   780→}
+   781→process.on('SIGTERM', () => shutdown('SIGTERM'))
+   782→process.on('SIGINT', () => shutdown('SIGINT'))
+   783→
+   784→process.on('uncaughtException', err => {
+   785→  console.error('[game-service] uncaught exception:', err)
+   786→})
+   787→process.on('unhandledRejection', reason => {
+   788→  console.error('[game-service] unhandled rejection:', reason)
+   789→})
+   790→
+   791→// ---------------------------------------------------------------------------
+   792→// Start
+   793→// ---------------------------------------------------------------------------
+   794→
+   795→httpServer.listen(PORT, () => {
+   796→  console.log('Game service listening on port 3003')
+   797→})
+   798→

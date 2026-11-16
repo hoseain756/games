@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  BookOpen,
   Check,
   Dices,
   Hourglass,
@@ -10,6 +11,7 @@ import {
   Play,
   QrCode,
   RotateCcw,
+  SlidersHorizontal,
   Sparkles,
   Trophy,
   X,
@@ -32,10 +34,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import {
   ANSWER_TIME_OPTIONS,
   CHOOSE_TIME_OPTIONS,
+  FILTER_ALL,
   TEAM_COLORS,
   TEAM_LABELS,
   TEAM_MISSIONS,
@@ -61,6 +71,60 @@ const QR_ROLES = [
   { role: 'host', label: 'المقدم (صاحب الجلسة)', icon: Sparkles },
   { role: 'display', label: 'شاشة العرض الكبيرة', icon: MonitorPlay },
 ]
+
+// Filter selectors for the question bank — options come straight from the
+// bank metadata broadcast by the service (categories + difficulties).
+function QuestionFilterControls({
+  state,
+  act,
+}: Pick<HostConsoleProps, 'state' | 'act'>) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="min-w-0 flex-1">
+        <label className="mb-1.5 block text-xs font-extrabold text-muted-foreground">
+          فئة الأسئلة
+        </label>
+        <Select
+          value={state.filters.category}
+          onValueChange={value => act('letters:config', { category: value })}
+        >
+          <SelectTrigger className="h-12 rounded-2xl text-sm font-extrabold" aria-label="فئة الأسئلة">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={FILTER_ALL}>كل الفئات</SelectItem>
+            {state.bankInfo.categories.map(category => (
+              <SelectItem key={category} value={category}>
+                {category}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="min-w-0 flex-1">
+        <label className="mb-1.5 block text-xs font-extrabold text-muted-foreground">
+          مستوى الصعوبة
+        </label>
+        <Select
+          value={state.filters.difficulty}
+          onValueChange={value => act('letters:config', { difficulty: value })}
+        >
+          <SelectTrigger className="h-12 rounded-2xl text-sm font-extrabold" aria-label="مستوى الصعوبة">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={FILTER_ALL}>كل المستويات</SelectItem>
+            {state.bankInfo.difficulties.map(difficulty => (
+              <SelectItem key={difficulty} value={difficulty}>
+                {difficulty}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  )
+}
 
 function QrSection() {
   return (
@@ -180,6 +244,18 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
             <CardDescription>حدد مدة الإجابة ومدة اختيار الحرف قبل البدء.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
+            <div className="flex items-center gap-2 rounded-2xl bg-purple-50 px-3 py-2.5 text-sm font-extrabold text-purple-800">
+              <BookOpen className="size-4 shrink-0" aria-hidden="true" />
+              بنك الأسئلة: {state.bankInfo.totalQuestions.toLocaleString('ar')} سؤالاً —{' '}
+              {state.bankInfo.letters} حرفاً × {state.bankInfo.questionsPerLetter} سؤالاً
+            </div>
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 font-extrabold">
+                <SlidersHorizontal className="size-4 text-purple-600" aria-hidden="true" />
+                فئة الأسئلة ومستوى الصعوبة
+              </p>
+              <QuestionFilterControls state={state} act={act} />
+            </div>
             <div>
               <p className="mb-2 flex items-center gap-1.5 font-extrabold">
                 <Hourglass className="size-4 text-purple-600" aria-hidden="true" />
@@ -292,6 +368,13 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                   selectable={null}
                   className="mx-auto h-auto w-full max-w-sm"
                 />
+                <div className="rounded-2xl border-2 border-dashed border-purple-200 p-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-purple-500">
+                    <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+                    فلترة الأسئلة (تُطبَّق على الجولة القادمة)
+                  </p>
+                  <QuestionFilterControls state={state} act={act} />
+                </div>
               </CardContent>
             </Card>
           )}
@@ -343,6 +426,11 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                 <p className="rounded-2xl bg-purple-50 p-4 text-xl font-extrabold leading-relaxed text-purple-900">
                   {state.question.q}
                 </p>
+                {state.lastAnswerText && (
+                  <p className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-2.5 text-base font-black text-amber-800">
+                    جواب الفريق المكتوب: «{state.lastAnswerText}»
+                  </p>
+                )}
                 <p className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 text-xl font-black text-emerald-700">
                   الجواب: {state.question.a}
                 </p>

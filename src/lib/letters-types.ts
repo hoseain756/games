@@ -7,6 +7,33 @@
 /** The two competing teams. */
 export type LettersTeam = 'A' | 'B'
 
+/**
+ * The 28 Arabic letters as shown on the board (hamza-alef display form).
+ * Question-bank keys use plain "ا" — question-bank.ts maps between the two.
+ */
+export const ARABIC_LETTERS: string[] = [
+  'أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر',
+  'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف',
+  'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي',
+]
+
+/** Filters for the question bank (values come from the JSON metadata). */
+export interface LettersFilters {
+  /** "الكل" or one of the bank categories. */
+  category: string
+  /** "الكل" or one of سهل / متوسط / صعب. */
+  difficulty: string
+}
+
+/** Bank metadata broadcast to every screen (no questions/answers included). */
+export interface LettersBankInfo {
+  totalQuestions: number
+  questionsPerLetter: number
+  letters: number
+  categories: string[]
+  difficulties: string[]
+}
+
 /** Connected screen roles; each role has its own dedicated QR code. */
 export type LettersRole = 'host' | 'teamA' | 'teamB' | 'display'
 
@@ -38,6 +65,10 @@ export interface LettersQuestionView {
   q: string
   /** Present for the host always, and for everyone once the round ends. */
   a?: string
+  /** Bank metadata shown as chips on the screens. */
+  category?: string
+  subcategory?: string
+  difficulty?: string
 }
 
 export interface LettersRoundResult {
@@ -83,7 +114,16 @@ export interface LettersState {
   winPath: string[]
   /** Short human-readable status message (Arabic). */
   lastEvent: string | null
+  /** Active question-bank filters (host-controlled). */
+  filters: LettersFilters
+  /** Static bank metadata (categories/difficulties come from the JSON). */
+  bankInfo: LettersBankInfo
+  /** Last text answer a team submitted for verification (host visibility). */
+  lastAnswerText: string | null
 }
+
+/** "الكل" sentinel used by the filter selectors. */
+export const FILTER_ALL = 'الكل'
 
 export const TEAM_LABELS: Record<LettersTeam, string> = {
   A: 'الفريق الأول',
@@ -125,4 +165,11 @@ export const CHOOSE_TIME_OPTIONS = [30, 20, 15, 10] as const
 export const TEAM_MISSIONS: Record<LettersTeam, string> = {
   A: 'توصيل الشريطين الأخضرين — الأعلى بالأسفل',
   B: 'توصيل الشريطين البرتقاليين — اليمين باليسار',
+}
+
+/** Difficulty labels -> colors used for chips on the screens. */
+export const DIFFICULTY_STYLES: Record<string, string> = {
+  'سهل': 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  'متوسط': 'bg-amber-100 text-amber-700 border-amber-300',
+  'صعب': 'bg-red-100 text-red-700 border-red-300',
 }

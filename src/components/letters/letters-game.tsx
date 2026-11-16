@@ -124,6 +124,7 @@ function LettersScreen({ role }: { role: LettersRole }) {
       onPick={letter => act('letters:pick', { letter })}
       onReady={() => act('letters:ready')}
       onBuzz={() => act('letters:buzz')}
+      onAnswer={text => act('letters:answer', { text })}
     />
   )
 }

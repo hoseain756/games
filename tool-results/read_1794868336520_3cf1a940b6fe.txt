@@ -1,0 +1,739 @@
+     1→    60→  /** Pending host-absence deletion timer. */
+     2→    61→  deleteTimer: ReturnType<typeof setTimeout> | null
+     3→    62→}
+     4→    63→
+     5→    64→/** socket.id -> membership info, used for clean disconnect handling. */
+     6→    65→interface SocketInfo {
+     7→    66→  code: string
+     8→    67→  role: 'host' | 'player'
+     9→    68→  playerId?: string
+    10→    69→}
+    11→    70→
+    12→    71→// ---------------------------------------------------------------------------
+    13→    72→// Limits / constants
+    14→    73→// ---------------------------------------------------------------------------
+    15→    74→
+    16→    75→const PORT = 3003 // hardcoded on purpose (Caddy gateway forwards here)
+    17→    76→const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no 0/O/1/I/L
+    18→    77→const CODE_LENGTH = 4
+    19→    78→const MAX_PLAYERS = 20
+    20→    79→const MAX_QUESTIONS = 500
+    21→    80→const MAX_QUESTIONS_PER_PLAYER = 30
+    22→    81→const QUESTION_MAX_LEN = 200
+    23→    82→const NAME_MAX_LEN = 30
+    24→    83→const SELFIE_MAX_LEN = 300000
+    25→    84→const HOST_GRACE_MS = 90_000
+    26→    85→const CLEANUP_INTERVAL_MS = 60_000
+    27→    86→const ROOM_TTL_MS = 10 * 60 * 1000
+    28→    87→
+    29→    88→const MSG = {
+    30→    89→  ROOM_EXPIRED: 'انتهت صلاحية الغرفة',
+    31→    90→  ROOM_NOT_FOUND: 'الغرفة غير موجودة، تأكد من الرمز',
+    32→    91→  GAME_ALREADY_STARTED: 'اللعبة بدأت بالفعل',
+    33→    92→  NAME_TAKEN: 'الاسم مستخدم، اختر اسماً آخر',
+    34→    93→  ROOM_FULL: 'الغرفة ممتلئة',
+    35→    94→  BAG_REFILLED: 'انتهت الأسئلة، نعيد خلطها',
+    36→    95→  UNAUTHORIZED: 'غير مصرح',
+    37→    96→  INVALID_NAME: 'الاسم غير صالح',
+    38→    97→  INVALID_DATA: 'بيانات غير صالحة',
+    39→    98→  SELFIE_TOO_LARGE: 'حجم الصورة كبير جداً',
+    40→    99→  UNEXPECTED_ERROR: 'حدث خطأ غير متوقع',
+    41→   100→} as const
+    42→   101→
+    43→   102→// ---------------------------------------------------------------------------
+    44→   103→// Server & in-memory state
+    45→   104→// ---------------------------------------------------------------------------
+    46→   105→
+    47→   106→const httpServer = createServer()
+    48→   107→const io = new Server(httpServer, {
+    49→   108→  path: '/', // DO NOT change, used by Caddy gateway
+    50→   109→  cors: { origin: '*', methods: ['GET', 'POST'] },
+    51→   110→  pingTimeout: 60000,
+    52→   111→  pingInterval: 25000,
+    53→   112→})
+    54→   113→
+    55→   114→const rooms = new Map<string, Room>()
+    56→   115→const socketRooms = new Map<string, SocketInfo>() // socket.id -> { code, role, playerId? }
+    57→   116→
+    58→   117→// ---------------------------------------------------------------------------
+    59→   118→// Small utilities
+    60→   119→// ---------------------------------------------------------------------------
+    61→   120→
+    62→   121→function shuffle<T>(a: T[]): T[] {
+    63→   122→  const r = a.slice()
+    64→   123→  for (let i = r.length - 1; i > 0; i--) {
+    65→   124→    const j = Math.floor(Math.random() * (i + 1));
+    66→   125→    [r[i], r[j]] = [r[j], r[i]]
+    67→   126→  }
+    68→   127→  return r
+    69→   128→}
+    70→   129→
+    71→   130→function asRecord(v: unknown): Record<string, unknown> {
+    72→   131→  return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {}
+    73→   132→}
+    74→   133→
+    75→   134→function asString(v: unknown): string {
+    76→   135→  return typeof v === 'string' ? v : ''
+    77→   136→}
+    78→   137→
+    79→   138→function normalizeCode(v: unknown): string {
+    80→   139→  return asString(v).trim().toUpperCase()
+    81→   140→}
+    82→   141→
+    83→   142→/** Clean + validate a raw questions array: 1..500 strings, each trimmed 1..200 chars. */
+    84→   143→function cleanQuestions(raw: unknown): string[] {
+    85→   144→  if (!Array.isArray(raw)) return []
+    86→   145→  const out: string[] = []
+    87→   146→  for (const item of raw) {
+    88→   147→    if (typeof item !== 'string') continue
+    89→   148→    const trimmed = item.trim()
+    90→   149→    if (trimmed.length >= 1 && trimmed.length <= QUESTION_MAX_LEN) out.push(trimmed)
+    91→   150→    if (out.length >= MAX_QUESTIONS) break
+    92→   151→  }
+    93→   152→  return out
+    94→   153→}
+    95→   154→
+    96→   155→/** Clean + validate ONE player's question list: 1..30 unique questions. */
+    97→   156→function cleanPlayerQuestions(raw: unknown): string[] {
+    98→   157→  if (!Array.isArray(raw)) return []
+    99→   158→  const out: string[] = []
+   100→   159→  for (const item of raw) {
+   101→   160→    if (typeof item !== 'string') continue
+   102→   161→    const trimmed = item.trim()
+   103→   162→    if (trimmed.length >= 1 && trimmed.length <= QUESTION_MAX_LEN && !out.includes(trimmed)) {
+   104→   163→      out.push(trimmed)
+   105→   164→    }
+   106→   165→    if (out.length >= MAX_QUESTIONS_PER_PLAYER) break
+   107→   166→  }
+   108→   167→  return out
+   109→   168→}
+   110→   169→
+   111→   170→/** Random unique 4-char room code among active rooms. */
+   112→   171→function generateRoomCode(): string {
+   113→   172→  let code = ''
+   114→   173→  do {
+   115→   174→    code = ''
+   116→   175→    for (let i = 0; i < CODE_LENGTH; i++) {
+   117→   176→      code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+   118→   177→    }
+   119→   178→  } while (rooms.has(code))
+   120→   179→  return code
+   121→   180→}
+   122→   181→
+   123→   182→// ---------------------------------------------------------------------------
+   124→   183→// Room helpers
+   125→   184→// ---------------------------------------------------------------------------
+   126→   185→
+   127→   186→function publicPlayerById(room: Room, playerId: string | null | undefined): PublicPlayer | null {
+   128→   187→  if (!playerId) return null
+   129→   188→  return room.players.find(p => p.id === playerId) ?? null
+   130→   189→}
+   131→   190→
+   132→   191→function turnPayload(room: Room) {
+   133→   192→  return {
+   134→   193→    round: room.round,
+   135→   194→    turnNo: room.idx + 1,
+   136→   195→    total: room.order.length,
+   137→   196→    currentPlayer: publicPlayerById(room, room.order[room.idx]),
+   138→   197→  }
+   139→   198→}
+   140→   199→
+   141→   200→function emitLobbyUpdate(room: Room) {
+   142→   201→  io.to(room.code).emit('lobby:update', { players: room.players, state: room.state })
+   143→   202→}
+   144→   203→
+   145→   204→/** Private question delivery: always to the CURRENT socket id of the turn player. */
+   146→   205→function sendQuestionToCurrentPlayer(room: Room) {
+   147→   206→  const playerId = room.order[room.idx]
+   148→   207→  if (!playerId || room.currentQuestion === null) return
+   149→   208→  const socketId = room.playerSockets.get(playerId)
+   150→   209→  if (!socketId) return // player currently disconnected; they receive it on rejoin
+   151→   210→  io.to(socketId).emit('player:question', { text: room.currentQuestion })
+   152→   211→}
+   153→   212→
+   154→   213→/** Delete a room and clean every map / socket.io membership related to it. */
+   155→   214→function deleteRoom(code: string) {
+   156→   215→  const room = rooms.get(code)
+   157→   216→  if (!room) return
+   158→   217→  if (room.deleteTimer) {
+   159→   218→    clearTimeout(room.deleteTimer)
+   160→   219→    room.deleteTimer = null
+   161→   220→  }
+   162→   221→  rooms.delete(code)
+   163→   222→  for (const [socketId, info] of Array.from(socketRooms.entries())) {
+   164→   223→    if (info.code === code) socketRooms.delete(socketId)
+   165→   224→  }
+   166→   225→  io.in(code).socketsLeave(code)
+   167→   226→  console.log(`[game-service] room ${code} deleted`)
+   168→   227→}
+   169→   228→
+   170→   229→/** Remove a player from players/order/socket maps (explicit leaves). */
+   171→   230→function removePlayerFromRoom(room: Room, playerId: string) {
+   172→   231→  const playerIdx = room.players.findIndex(p => p.id === playerId)
+   173→   232→  if (playerIdx !== -1) room.players.splice(playerIdx, 1)
+   174→   233→  const orderIdx = room.order.indexOf(playerId)
+   175→   234→  if (orderIdx !== -1) {
+   176→   235→    room.order.splice(orderIdx, 1)
+   177→   236→    if (orderIdx < room.idx) room.idx--
+   178→   237→    if (room.idx >= room.order.length) room.idx = 0
+   179→   238→  }
+   180→   239→  room.playerSockets.delete(playerId)
+   181→   240→  room.submissions.delete(playerId)
+   182→   241→}
+   183→   242→
+   184→   243→/** If this socket is mapped as a player in some other room, detach it cleanly. */
+   185→   244→function detachFromPreviousRoom(socket: Socket, exceptCode?: string) {
+   186→   245→  const info = socketRooms.get(socket.id)
+   187→   246→  if (!info || info.role !== 'player' || !info.playerId) return
+   188→   247→  if (exceptCode && info.code === exceptCode) return
+   189→   248→  const previous = rooms.get(info.code)
+   190→   249→  socketRooms.delete(socket.id)
+   191→   250→  if (!previous) return
+   192→   251→  removePlayerFromRoom(previous, info.playerId)
+   193→   252→  socket.leave(previous.code)
+   194→   253→  emitLobbyUpdate(previous)
+   195→   254→}
+   196→   255→
+   197→   256→/** Guard for host-only events: resolves the room or emits an error. */
+   198→   257→function requireHost(socket: Socket): Room | null {
+   199→   258→  const info = socketRooms.get(socket.id)
+   200→   259→  const room = info ? rooms.get(info.code) : undefined
+   201→   260→  if (!room) {
+   202→   261→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   203→   262→    return null
+   204→   263→  }
+   205→   264→  if (room.hostSocketId !== socket.id) {
+   206→   265→    socket.emit('room:error', { message: MSG.UNAUTHORIZED })
+   207→   266→    return null
+   208→   267→  }
+   209→   268→  return room
+   210→   269→}
+   211→   270→
+   212→   271→// ---------------------------------------------------------------------------
+   213→   272→// Question selection
+   214→   273→// ---------------------------------------------------------------------------
+   215→   274→
+   216→   275→function pickQuestion(room: Room) {
+   217→   276→  const qs = room.questions
+   218→   277→  if (!qs.length) return // defensive: pool is guaranteed non-empty at start
+   219→   278→  if (room.opts.norepeat) {
+   220→   279→    if (!room.bag.length) {
+   221→   280→      room.bag = shuffle(qs)
+   222→   281→      if (room.bag.length > 1 && room.bag[room.bag.length - 1] === room.currentQuestion) {
+   223→   282→        room.bag.unshift(room.bag.pop() as string)
+   224→   283→      }
+   225→   284→      if (room.round > 1 || room.idx > 0) {
+   226→   285→        io.to(room.code).emit('toast', { message: MSG.BAG_REFILLED })
+   227→   286→      }
+   228→   287→    }
+   229→   288→    room.currentQuestion = room.bag.pop() as string
+   230→   289→  } else {
+   231→   290→    let q = qs[Math.floor(Math.random() * qs.length)]
+   232→   291→    let guard = 0
+   233→   292→    while (qs.length > 1 && q === room.currentQuestion && guard++ < 25) {
+   234→   293→      q = qs[Math.floor(Math.random() * qs.length)]
+   235→   294→    }
+   236→   295→    room.currentQuestion = q
+   237→   296→  }
+   238→   297→}
+   239→   298→
+   240→   299→/** pickQuestion, but guarantees the new question differs from the current one. */
+   241→   300→function rerollQuestion(room: Room) {
+   242→   301→  if (room.questions.length <= 1) {
+   243→   302→    pickQuestion(room) // nothing else to show with a single question
+   244→   303→    return
+   245→   304→  }
+   246→   305→  const previous = room.currentQuestion
+   247→   306→  for (let attempt = 0; attempt < 20; attempt++) {
+   248→   307→    pickQuestion(room)
+   249→   308→    if (room.currentQuestion !== previous) return
+   250→   309→  }
+   251→   310→  // Still identical after 20 tries — force a different one / reshuffle the bag.
+   252→   311→  if (room.opts.norepeat) {
+   253→   312→    const rest = shuffle(room.questions.filter(q => q !== previous))
+   254→   313→    room.bag = rest.length > 0 ? rest : shuffle(room.questions)
+   255→   314→    room.currentQuestion = room.bag.pop() as string
+   256→   315→  } else {
+   257→   316→    const others = room.questions.filter(q => q !== previous)
+   258→   317→    const pool = others.length > 0 ? others : room.questions
+   259→   318→    room.currentQuestion = pool[Math.floor(Math.random() * pool.length)]
+   260→   319→  }
+   261→   320→}
+   262→   321→
+   263→   322→// ---------------------------------------------------------------------------
+   264→   323→// Event handlers (client -> server)
+   265→   324→// ---------------------------------------------------------------------------
+   266→   325→
+   267→   326→function onHostCreate(socket: Socket, payload: unknown) {
+   268→   327→  const body = asRecord(payload)
+   269→   328→  // Questions are no longer required from the host — every player writes his
+   270→   329→  // own list from his phone; the pool is built when everyone is done.
+   271→   330→  const questions = cleanQuestions(body.questions)
+   272→   331→  const optsRecord = asRecord(body.opts)
+   273→   332→  const opts: GameOptions = {
+   274→   333→    norepeat: optsRecord.norepeat === true,
+   275→   334→    shuffle: optsRecord.shuffle === true,
+   276→   335→  }
+   277→   336→  const code = generateRoomCode()
+   278→   337→  const room: Room = {
+   279→   338→    code,
+   280→   339→    hostSocketId: socket.id,
+   281→   340→    questions,
+   282→   341→    opts,
+   283→   342→    state: 'lobby',
+   284→   343→    players: [],
+   285→   344→    submissions: new Map(),
+   286→   345→    order: [],
+   287→   346→    idx: 0,
+   288→   347→    round: 1,
+   289→   348→    bag: [],
+   290→   349→    currentQuestion: null,
+   291→   350→    lastActivity: Date.now(),
+   292→   351→    peeking: false,
+   293→   352→    playerSockets: new Map(),
+   294→   353→    deleteTimer: null,
+   295→   354→  }
+   296→   355→  rooms.set(code, room)
+   297→   356→  socket.join(code)
+   298→   357→  socketRooms.set(socket.id, { code, role: 'host' })
+   299→   358→  console.log(`[game-service] room ${code} created by host ${socket.id} (shuffle=${opts.shuffle}, norepeat=${opts.norepeat})`)
+   300→   359→  socket.emit('room:created', { code, state: 'lobby', questions, opts })
+   301→   360→}
+   302→   361→
+   303→   362→function onHostReconnect(socket: Socket, payload: unknown) {
+   304→   363→  const code = normalizeCode(asRecord(payload).code)
+   305→   364→  const room = code ? rooms.get(code) : undefined
+   306→   365→  if (!room) {
+   307→   366→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   308→   367→    return
+   309→   368→  }
+   310→   369→  room.hostSocketId = socket.id
+   311→   370→  if (room.deleteTimer) {
+   312→   371→    clearTimeout(room.deleteTimer)
+   313→   372→    room.deleteTimer = null
+   314→   373→  }
+   315→   374→  socket.join(code)
+   316→   375→  socketRooms.set(socket.id, { code, role: 'host' })
+   317→   376→  room.lastActivity = Date.now()
+   318→   377→  console.log(`[game-service] host reconnected to room ${code} (${socket.id}, state=${room.state})`)
+   319→   378→  socket.emit('room:created', { code: room.code, state: room.state, questions: room.questions, opts: room.opts })
+   320→   379→  socket.emit('lobby:update', { players: room.players, state: room.state })
+   321→   380→  if (room.state === 'playing') {
+   322→   381→    socket.emit('game:turn', turnPayload(room))
+   323→   382→  }
+   324→   383→}
+   325→   384→
+   326→   385→function onPlayerJoin(socket: Socket, payload: unknown) {
+   327→   386→  const body = asRecord(payload)
+   328→   387→  const code = normalizeCode(body.code)
+   329→   388→  const playerId = asString(body.playerId).trim()
+   330→   389→  const name = asString(body.name).trim()
+   331→   390→  const selfie = asString(body.selfie)
+   332→   391→
+   333→   392→  const room = code ? rooms.get(code) : undefined
+   334→   393→  if (!room) {
+   335→   394→    socket.emit('room:error', { message: MSG.ROOM_NOT_FOUND })
+   336→   395→    return
+   337→   396→  }
+   338→   397→  room.lastActivity = Date.now()
+   339→   398→  if (!playerId || playerId.length > 128) {
+   340→   399→    socket.emit('room:error', { message: MSG.INVALID_DATA })
+   341→   400→    return
+   342→   401→  }
+   343→   402→  if (!name || name.length > NAME_MAX_LEN) {
+   344→   403→    socket.emit('room:error', { message: MSG.INVALID_NAME })
+   345→   404→    return
+   346→   405→  }
+   347→   406→  if (selfie.length > SELFIE_MAX_LEN) {
+   348→   407→    socket.emit('room:error', { message: MSG.SELFIE_TOO_LARGE })
+   349→   408→    return
+   350→   409→  }
+   351→   410→
+   352→   411→  // Defensive: if this socket is still mapped as a player in another room, detach first.
+   353→   412→  detachFromPreviousRoom(socket, code)
+   354→   413→
+   355→   414→  const existing = room.players.find(p => p.id === playerId)
+   356→   415→
+   357→   416→  if (room.state === 'playing') {
+   358→   417→    // During a game only a known player may rejoin.
+   359→   418→    if (!existing) {
+   360→   419→      socket.emit('room:error', { message: MSG.GAME_ALREADY_STARTED })
+   361→   420→      return
+   362→   421→    }
+   363→   422→    existing.connected = true
+   364→   423→    room.playerSockets.set(playerId, socket.id)
+   365→   424→    socketRooms.set(socket.id, { code, role: 'player', playerId })
+   366→   425→    socket.join(code)
+   367→   426→    socket.emit('player:joined-ok', { name: existing.name, state: 'playing', ready: existing.ready })
+   368→   427→    // Give the rejoining player the full turn context so the UI can render.
+   369→   428→    socket.emit('game:turn', turnPayload(room))
+   370→   429→    if (room.order[room.idx] === playerId && room.currentQuestion !== null) {
+   371→   430→      socket.emit('player:question', { text: room.currentQuestion })
+   372→   431→    }
+   373→   432→    emitLobbyUpdate(room)
+   374→   433→    console.log(`[game-service] player "${existing.name}" rejoined playing room ${code}`)
+   375→   434→    return
+   376→   435→  }
+   377→   436→
+   378→   437→  // state === 'lobby'
+   379→   438→  if (existing) {
+   380→   439→    // Same player refreshing / rejoining: update details and remap the socket.
+   381→   440→    existing.name = name
+   382→   441→    existing.selfie = selfie
+   383→   442→    existing.connected = true
+   384→   443→    room.playerSockets.set(playerId, socket.id)
+   385→   444→    socketRooms.set(socket.id, { code, role: 'player', playerId })
+   386→   445→    socket.join(code)
+   387→   446→    socket.emit('player:joined-ok', { name, state: 'lobby', ready: existing.ready })
+   388→   447→    emitLobbyUpdate(room)
+   389→   448→    console.log(`[game-service] player "${name}" re-joined lobby ${code}`)
+   390→   449→    return
+   391→   450→  }
+   392→   451→
+   393→   452→  const nameTaken = room.players.some(p => p.connected && p.name === name)
+   394→   453→  if (nameTaken) {
+   395→   454→    socket.emit('room:error', { message: MSG.NAME_TAKEN })
+   396→   455→    return
+   397→   456→  }
+   398→   457→  if (room.players.length >= MAX_PLAYERS) {
+   399→   458→    socket.emit('room:error', { message: MSG.ROOM_FULL })
+   400→   459→    return
+   401→   460→  }
+   402→   461→  const player: PublicPlayer = { id: playerId, name, selfie, connected: true, ready: false }
+   403→   462→  room.players.push(player)
+   404→   463→  room.playerSockets.set(playerId, socket.id)
+   405→   464→  socketRooms.set(socket.id, { code, role: 'player', playerId })
+   406→   465→  socket.join(code)
+   407→   466→  socket.emit('player:joined-ok', { name, state: 'lobby', ready: false })
+   408→   467→  emitLobbyUpdate(room)
+   409→   468→  console.log(`[game-service] player "${name}" joined room ${code} (${room.players.length}/${MAX_PLAYERS})`)
+   410→   469→}
+   411→   470→
+   412→   471→function onPlayerLeave(socket: Socket) {
+   413→   472→  const info = socketRooms.get(socket.id)
+   414→   473→  if (!info || info.role !== 'player' || !info.playerId) return
+   415→   474→  const room = rooms.get(info.code)
+   416→   475→  socketRooms.delete(socket.id)
+   417→   476→  if (!room) return
+   418→   477→  removePlayerFromRoom(room, info.playerId)
+   419→   478→  socket.leave(room.code)
+   420→   479→  room.lastActivity = Date.now()
+   421→   480→  console.log(`[game-service] player "${info.playerId}" left room ${room.code}`)
+   422→   481→  emitLobbyUpdate(room)
+   423→   482→  tryAutoStart(room)
+   424→   483→}
+   425→   484→
+   426→   485→/**
+   427→   486→ * Build the question pool from every player's submission and start the game.
+   428→   487→ * Only called when ALL connected players are ready.
+   429→   488→ */
+   430→   489→function startGame(room: Room) {
+   431→   490→  const pool: string[] = []
+   432→   491→  for (const player of room.players) {
+   433→   492→    const list = room.submissions.get(player.id)
+   434→   493→    if (list) pool.push(...list)
+   435→   494→  }
+   436→   495→  room.questions = pool
+   437→   496→  room.state = 'playing'
+   438→   497→  const ids = room.players.map(p => p.id) // join order
+   439→   498→  room.order = room.opts.shuffle ? shuffle(ids) : ids
+   440→   499→  room.idx = 0
+   441→   500→  room.round = 1
+   442→   501→  room.bag = []
+   443→   502→  pickQuestion(room)
+   444→   503→  io.to(room.code).emit('game:turn', turnPayload(room))
+   445→   504→  sendQuestionToCurrentPlayer(room)
+   446→   505→  console.log(`[game-service] room ${room.code} auto-started (${room.order.length} players, pool of ${pool.length} questions)`)
+   447→   506→}
+   448→   507→
+   449→   508→/** Auto-start once at least two players are connected and ALL of them are ready. */
+   450→   509→function tryAutoStart(room: Room) {
+   451→   510→  if (room.state !== 'lobby') return
+   452→   511→  const connected = room.players.filter(p => p.connected)
+   453→   512→  if (connected.length < 2) return
+   454→   513→  if (!connected.every(p => p.ready)) return
+   455→   514→  startGame(room)
+   456→   515→}
+   457→   516→
+   458→   517→/** A player finished writing his questions on his phone. */
+   459→   518→function onPlayerSubmitQuestions(socket: Socket, payload: unknown) {
+   460→   519→  const info = socketRooms.get(socket.id)
+   461→   520→  if (!info || info.role !== 'player' || !info.playerId) return
+   462→   521→  const room = rooms.get(info.code)
+   463→   522→  if (!room) {
+   464→   523→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   465→   524→    return
+   466→   525→  }
+   467→   526→  if (room.state !== 'lobby') {
+   468→   527→    socket.emit('room:error', { message: MSG.GAME_ALREADY_STARTED })
+   469→   528→    return
+   470→   529→  }
+   471→   530→  const player = room.players.find(p => p.id === info.playerId)
+   472→   531→  if (!player) {
+   473→   532→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   474→   533→    return
+   475→   534→  }
+   476→   535→  if (player.ready) return // already submitted, ignore duplicates
+   477→   536→  const list = cleanPlayerQuestions(asRecord(payload).questions)
+   478→   537→  if (!list.length) {
+   479→   538→    socket.emit('room:error', { message: MSG.INVALID_DATA })
+   480→   539→    return
+   481→   540→  }
+   482→   541→  room.submissions.set(player.id, list)
+   483→   542→  player.ready = true
+   484→   543→  socket.emit('player:submitted', { count: list.length })
+   485→   544→  emitLobbyUpdate(room)
+   486→   545→  console.log(`[game-service] player "${player.name}" submitted ${list.length} question(s) in room ${room.code}`)
+   487→   546→  tryAutoStart(room)
+   488→   547→}
+   489→   548→
+   490→   549→/** Advance to the next player (wraps around and starts a new round). */
+   491→   550→function advanceTurn(room: Room) {
+   492→   551→  room.idx++
+   493→   552→  if (room.idx >= room.order.length) {
+   494→   553→    room.idx = 0
+   495→   554→    room.round++
+   496→   555→    if (room.opts.shuffle) room.order = shuffle(room.order)
+   497→   556→  }
+   498→   557→  pickQuestion(room)
+   499→   558→  io.to(room.code).emit('game:turn', turnPayload(room))
+   500→   559→  sendQuestionToCurrentPlayer(room)
+   501→   560→}
+   502→   561→
+   503→   562→function onHostNext(socket: Socket) {
+   504→   563→  const room = requireHost(socket)
+   505→   564→  if (!room) return
+   506→   565→  if (room.state !== 'playing') return
+   507→   566→  advanceTurn(room)
+   508→   567→}
+   509→   568→
+   510→   569→/** The CURRENT player taps "next" on his own phone to pass the turn. */
+   511→   570→function onPlayerNext(socket: Socket) {
+   512→   571→  const info = socketRooms.get(socket.id)
+   513→   572→  if (!info || info.role !== 'player' || !info.playerId) return
+   514→   573→  const room = rooms.get(info.code)
+   515→   574→  if (!room) {
+   516→   575→    socket.emit('room:error', { message: MSG.ROOM_EXPIRED })
+   517→   576→    return
+   518→   577→  }
+   519→   578→  if (room.state !== 'playing') return
+   520→   579→  // Only the player whose turn it is may advance the game.
+   521→   580→  if (room.order[room.idx] !== info.playerId) {
+   522→   581→    socket.emit('room:error', { message: MSG.UNAUTHORIZED })
+   523→   582→    return
+   524→   583→  }
+   525→   584→  const name = publicPlayerById(room, info.playerId)?.name ?? info.playerId
+   526→   585→  console.log(`[game-service] player "${name}" advanced the turn in room ${room.code}`)
+   527→   586→  advanceTurn(room)
+   528→   587→}
+   529→   588→
+   530→   589→function onHostReroll(socket: Socket) {
+   531→   590→  const room = requireHost(socket)
+   532→   591→  if (!room) return
+   533→   592→  if (room.state !== 'playing') return
+   534→   593→  rerollQuestion(room)
+   535→   594→  sendQuestionToCurrentPlayer(room)
+   536→   595→  // If the host is currently peeking, keep his view in sync.
+   537→   596→  if (room.peeking && room.currentQuestion !== null) {
+   538→   597→    io.to(room.hostSocketId).emit('host:question', { text: room.currentQuestion })
+   539→   598→  }
+   540→   599→}
+   541→   600→
+   542→   601→function onHostPeek(socket: Socket) {
+   543→   602→  const room = requireHost(socket)
+   544→   603→  if (!room) return
+   545→   604→  room.peeking = true
+   546→   605→  io.to(room.hostSocketId).emit('host:question', { text: room.currentQuestion })
+   547→   606→}
+   548→   607→
+   549→   608→function onHostHide(socket: Socket) {
+   550→   609→  const room = requireHost(socket)
+   551→   610→  if (!room) return
+   552→   611→  room.peeking = false
+   553→   612→  io.to(room.hostSocketId).emit('host:question', { text: null })
+   554→   613→}
+   555→   614→
+   556→   615→function onHostEnd(socket: Socket) {
+   557→   616→  const room = requireHost(socket)
+   558→   617→  if (!room) return
+   559→   618→  room.state = 'lobby'
+   560→   619→  room.round = 1
+   561→   620→  room.idx = 0
+   562→   621→  room.bag = []
+   563→   622→  room.currentQuestion = null
+   564→   623→  room.peeking = false
+   565→   624→  // New round: everyone writes fresh questions again.
+   566→   625→  room.questions = []
+   567→   626→  room.submissions.clear()
+   568→   627→  for (const player of room.players) player.ready = false
+   569→   628→  console.log(`[game-service] room ${room.code} ended by host, back to lobby (ready flags reset)`)
+   570→   629→  io.to(room.code).emit('game:ended', {})
+   571→   630→  emitLobbyUpdate(room)
+   572→   631→}
+   573→   632→
+   574→   633→function onHostClose(socket: Socket) {
+   575→   634→  const room = requireHost(socket)
+   576→   635→  if (!room) return
+   577→   636→  console.log(`[game-service] room ${room.code} closed by host`)
+   578→   637→  io.to(room.code).emit('room:closed', {})
+   579→   638→  deleteRoom(room.code)
+   580→   639→}
+   581→   640→
+   582→   641→// ---------------------------------------------------------------------------
+   583→   642→// Disconnect handling
+   584→   643→// ---------------------------------------------------------------------------
+   585→   644→
+   586→   645→function handleDisconnect(socket: Socket) {
+   587→   646→  const info = socketRooms.get(socket.id)
+   588→   647→  socketRooms.delete(socket.id)
+   589→   648→  if (!info) return
+   590→   649→  const room = rooms.get(info.code)
+   591→   650→  if (!room) return
+   592→   651→  room.lastActivity = Date.now()
+   593→   652→
+   594→   653→  if (info.role === 'host') {
+   595→   654→    // Ignore stale host sockets (host already reconnected with a new socket).
+   596→   655→    if (room.hostSocketId !== socket.id) return
+   597→   656→    const anyConnectedPlayer = room.players.some(p => p.connected)
+   598→   657→    if (!anyConnectedPlayer) {
+   599→   658→      console.log(`[game-service] host disconnected with no connected players, deleting room ${room.code}`)
+   600→   659→      deleteRoom(room.code)
+   601→   660→      return
+   602→   661→    }
+   603→   662→    io.to(room.code).emit('host:offline', {})
+   604→   663→    if (room.deleteTimer) clearTimeout(room.deleteTimer)
+   605→   664→    room.deleteTimer = setTimeout(() => {
+   606→   665→      room.deleteTimer = null
+   607→   666→      if (rooms.get(room.code) === room) {
+   608→   667→        console.log(`[game-service] host absent for ${HOST_GRACE_MS / 1000}s, deleting room ${room.code}`)
+   609→   668→        deleteRoom(room.code)
+   610→   669→      }
+   611→   670→    }, HOST_GRACE_MS)
+   612→   671→    console.log(`[game-service] host of room ${room.code} disconnected, ${HOST_GRACE_MS / 1000}s grace started`)
+   613→   672→    return
+   614→   673→  }
+   615→   674→
+   616→   675→  if (info.role === 'player' && info.playerId) {
+   617→   676→    const playerId = info.playerId
+   618→   677→    // Only mark disconnected if this socket is still the player's current socket
+   619→   678→    // (a newer socket may have already reconnected).
+   620→   679→    if (room.playerSockets.get(playerId) !== socket.id) return
+   621→   680→    room.playerSockets.delete(playerId)
+   622→   681→    const player = room.players.find(p => p.id === playerId)
+   623→   682→    if (player) {
+   624→   683→      player.connected = false
+   625→   684→      emitLobbyUpdate(room)
+   626→   685→      console.log(`[game-service] player "${player.name}" disconnected from room ${room.code}`)
+   627→   686→      // The leaver might have been the only one blocking the auto-start.
+   628→   687→      tryAutoStart(room)
+   629→   688→    }
+   630→   689→  }
+   631→   690→}
+   632→   691→
+   633→   692→// ---------------------------------------------------------------------------
+   634→   693→// Wiring (every handler wrapped so a throw never crashes the process)
+   635→   694→// ---------------------------------------------------------------------------
+   636→   695→
+   637→   696→type GameEventHandler = (socket: Socket, payload: unknown) => void
+   638→   697→
+   639→   698→function listen(socket: Socket, event: string, handler: GameEventHandler) {
+   640→   699→  socket.on(event, (payload: unknown) => {
+   641→   700→    let roomCodeBefore: string | null = null
+   642→   701→    try {
+   643→   702→      roomCodeBefore = socketRooms.get(socket.id)?.code ?? null
+   644→   703→      handler(socket, payload)
+   645→   704→      const code = socketRooms.get(socket.id)?.code ?? roomCodeBefore
+   646→   705→      if (code) {
+   647→   706→        const room = rooms.get(code)
+   648→   707→        if (room) room.lastActivity = Date.now()
+   649→   708→      }
+   650→   709→    } catch (err) {
+   651→   710→      console.error(`[game-service] unexpected error in "${event}" from ${socket.id}:`, err)
+   652→   711→      try {
+   653→   712→        socket.emit('room:error', { message: MSG.UNEXPECTED_ERROR })
+   654→   713→      } catch {
+   655→   714→        // socket already gone; nothing else to do
+   656→   715→      }
+   657→   716→    }
+   658→   717→  })
+   659→   718→}
+   660→   719→
+   661→   720→io.on('connection', (socket: Socket) => {
+   662→   721→  console.log(`[game-service] socket connected: ${socket.id}`)
+   663→   722→
+   664→   723→  listen(socket, 'host:create', onHostCreate)
+   665→   724→  listen(socket, 'host:reconnect', onHostReconnect)
+   666→   725→  listen(socket, 'player:join', onPlayerJoin)
+   667→   726→  listen(socket, 'player:leave', onPlayerLeave)
+   668→   727→  listen(socket, 'player:submit-questions', onPlayerSubmitQuestions)
+   669→   728→  listen(socket, 'host:next', onHostNext)
+   670→   729→  listen(socket, 'player:next', onPlayerNext)
+   671→   730→  listen(socket, 'host:reroll', onHostReroll)
+   672→   731→  listen(socket, 'host:peek', onHostPeek)
+   673→   732→  listen(socket, 'host:hide', onHostHide)
+   674→   733→  listen(socket, 'host:end', onHostEnd)
+   675→   734→  listen(socket, 'host:close', onHostClose)
+   676→   735→
+   677→   736→  socket.on('disconnect', reason => {
+   678→   737→    try {
+   679→   738→      console.log(`[game-service] socket disconnected: ${socket.id} (${reason})`)
+   680→   739→      handleDisconnect(socket)
+   681→   740→    } catch (err) {
+   682→   741→      console.error('[game-service] error in disconnect handling:', err)
+   683→   742→    }
+   684→   743→  })
+   685→   744→})
+   686→   745→
+   687→   746→// ---------------------------------------------------------------------------
+   688→   747→// Periodic cleanup: remove inactive rooms whose host socket is gone
+   689→   748→// ---------------------------------------------------------------------------
+   690→   749→
+   691→   750→const cleanupTimer = setInterval(() => {
+   692→   751→  const now = Date.now()
+   693→   752→  for (const room of Array.from(rooms.values())) {
+   694→   753→    const hostGone = !io.sockets.sockets.has(room.hostSocketId)
+   695→   754→    if (now - room.lastActivity > ROOM_TTL_MS && hostGone) {
+   696→   755→      console.log(`[game-service] cleaning up inactive room ${room.code}`)
+   697→   756→      deleteRoom(room.code)
+   698→   757→    }
+   699→   758→  }
+   700→   759→}, CLEANUP_INTERVAL_MS)
+   701→   760→cleanupTimer.unref?.()
+   702→   761→
+   703→   762→// ---------------------------------------------------------------------------
+   704→   763→// Graceful shutdown + global error safety nets
+   705→   764→// ---------------------------------------------------------------------------
+   706→   765→
+   707→   766→let shuttingDown = false
+   708→   767→function shutdown(signal: string) {
+   709→   768→  if (shuttingDown) return
+   710→   769→  shuttingDown = true
+   711→   770→  console.log(`[game-service] ${signal} received, shutting down`)
+   712→   771→  clearInterval(cleanupTimer)
+   713→   772→  for (const room of rooms.values()) {
+   714→   773→    if (room.deleteTimer) {
+   715→   774→      clearTimeout(room.deleteTimer)
+   716→   775→      room.deleteTimer = null
+   717→   776→    }
+   718→   777→  }
+   719→   778→  io.close(() => process.exit(0))
+   720→   779→  setTimeout(() => process.exit(0), 2000).unref()
+   721→   780→}
+   722→   781→process.on('SIGTERM', () => shutdown('SIGTERM'))
+   723→   782→process.on('SIGINT', () => shutdown('SIGINT'))
+   724→   783→
+   725→   784→process.on('uncaughtException', err => {
+   726→   785→  console.error('[game-service] uncaught exception:', err)
+   727→   786→})
+   728→   787→process.on('unhandledRejection', reason => {
+   729→   788→  console.error('[game-service] unhandled rejection:', reason)
+   730→   789→})
+   731→   790→
+   732→   791→// ---------------------------------------------------------------------------
+   733→   792→// Start
+   734→   793→// ---------------------------------------------------------------------------
+   735→   794→
+   736→   795→httpServer.listen(PORT, () => {
+   737→   796→  console.log('Game service listening on port 3003')
+   738→   797→})
+   739→   798→

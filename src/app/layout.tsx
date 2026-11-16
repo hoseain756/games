@@ -3,6 +3,15 @@ import { Baloo_Bhaijaan_2, Tajawal } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ensureGameEngines } from "@/lib/engine-host";
+
+// The two real-time engines (letters 3004, questions 3003) live inside this
+// persistent Next.js server process. Idempotent: the globalThis guard plus
+// EADDRINUSE tolerance make repeated calls no-ops (src/instrumentation.ts
+// covers fresh boots; this covers the already-running dev server).
+if (typeof window === "undefined") {
+  ensureGameEngines();
+}
 
 const tajawal = Tajawal({
   subsets: ["arabic", "latin"],

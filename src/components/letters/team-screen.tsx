@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   CheckCircle2,
@@ -9,11 +9,13 @@ import {
   MoveHorizontal,
   MoveVertical,
   PencilLine,
+  Send,
   Trophy,
   Zap,
 } from 'lucide-react'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import {
+  ARABIC_LETTERS,
   TEAM_COLORS,
   TEAM_LABELS,
   TEAM_MISSIONS,
@@ -33,6 +35,8 @@ interface TeamScreenProps {
   onPick: (letter: string) => void
   onReady: () => void
   onBuzz: () => void
+  /** Submits the typed answer to the server for Arabic verification. */
+  onAnswer: (text: string) => void
 }
 
 function TimerPill({ remaining }: { remaining: number | null }) {
@@ -51,10 +55,30 @@ function TimerPill({ remaining }: { remaining: number | null }) {
   )
 }
 
-export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: TeamScreenProps) {
+export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz, onAnswer }: TeamScreenProps) {
   const isMyTurn = state.activeTeam === team
   const otherTeam: LettersTeam = team === 'A' ? 'B' : 'A'
   const color = TEAM_COLORS[team]
+
+  // Typed answer box (cleared whenever a new question appears — adjusting
+  // state during render per React guidance, no effect needed).
+  const [answerText, setAnswerText] = useState('')
+  const [seenQuestionId, setSeenQuestionId] = useState<string | null>(state.question?.id ?? null)
+  const currentQuestionId = state.question?.id ?? null
+  if (seenQuestionId !== currentQuestionId) {
+    setSeenQuestionId(currentQuestionId)
+    setAnswerText('')
+  }
+
+  const canType =
+    isMyTurn && (state.phase === 'team_turn' || state.phase === 'buzz_answer') && !state.locked
+
+  const submitAnswer = () => {
+    const text = answerText.trim()
+    if (!text || !canType) return
+    onAnswer(text)
+    setAnswerText('')
+  }
 
   const selectable = useMemo(() => {
     if (state.phase !== 'choosing' || !isMyTurn) return null
@@ -227,6 +251,35 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
               onPick={onPick}
               className="h-auto w-full"
             />
+            {/* All 28 letters — off-board letters give a +1 bonus (no cell). */}
+            <p className="mt-3 mb-1.5 text-center text-xs font-extrabold text-purple-400">
+              كل الحروف الـ28 — المخططة خارج اللوحة (بونص +1)
+            </p>
+            <div className="flex flex-wrap justify-center gap-1.5" role="group" aria-label="كل حروف العربية">
+              {ARABIC_LETTERS.map(letter => {
+                const onBoard = state.layout.includes(letter)
+                const owner = state.claimed[letter]
+                const pickable = isMyTurn && !owner
+                return (
+                  <button
+                    key={letter}
+                    type="button"
+                    disabled={!pickable}
+                    onClick={() => onPick(letter)}
+                    aria-label={onBoard ? `اختر حرف ${letter}` : `بونص — اختر حرف ${letter}`}
+                    className={`flex size-9 items-center justify-center rounded-xl border-2 text-lg font-black transition-transform disabled:cursor-not-allowed ${
+                      owner
+                        ? `${owner === 'A' ? 'border-green-600 bg-green-500 text-white' : 'border-orange-600 bg-orange-400 text-white'}`
+                        : onBoard
+                          ? `border-purple-300 bg-purple-50 text-purple-800 ${pickable ? 'active:scale-90 hover:border-purple-500 hover:bg-purple-100' : 'opacity-50'}`
+                          : `border-dashed border-purple-300 bg-white text-purple-500 ${pickable ? 'active:scale-90 hover:border-amber-400 hover:bg-amber-50' : 'opacity-40'}`
+                    }`}
+                  >
+                    {letter}
+                  </button>
+                )
+              })}
+            </div>
           </section>
         )}
 
@@ -247,6 +300,38 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
               )}
             </div>
             <p className="text-2xl font-extrabold leading-relaxed">{state.question.q}</p>
+
+            {/* Typed answer with server-side Arabic verification */}
+            {canType && (
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  value={answerText}
+                  onChange={event => setAnswerText(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') submitAnswer()
+                  }}
+                  placeholder="اكتبوا الجواب هنا..."
+                  aria-label="اكتبوا الجواب"
+                  className="h-12 min-w-0 flex-1 rounded-2xl border-2 border-purple-200 bg-purple-50 px-4 text-lg font-extrabold text-purple-900 outline-none placeholder:font-bold placeholder:text-purple-300 focus:border-purple-400"
+                />
+                <button
+                  type="button"
+                  onClick={submitAnswer}
+                  disabled={!answerText.trim()}
+                  className="flex h-12 shrink-0 items-center gap-1.5 rounded-2xl bg-purple-700 px-4 text-base font-black text-white shadow-[0_4px_0_#4c1d95] transition-transform active:scale-95 disabled:opacity-50"
+                >
+                  <Send className="size-5" aria-hidden="true" />
+                  تحقق
+                </button>
+              </div>
+            )}
+            {canType && state.lastAnswerText && (
+              <p className="mt-2 rounded-xl bg-amber-100 px-3 py-1.5 text-center text-sm font-extrabold text-amber-800" role="alert">
+                جوابكم «{state.lastAnswerText}» غير صحيح — جربوا مرة أخرى!
+              </p>
+            )}
+
             {state.phase === 'round_end' && state.question.a ? (
               <p className="mt-3 rounded-xl bg-emerald-100 px-3 py-2 text-lg font-black text-emerald-700">
                 الجواب: {state.question.a}

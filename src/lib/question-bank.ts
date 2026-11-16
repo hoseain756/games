@@ -1,164 +1,104 @@
 // ---------------------------------------------------------------------------
-// Question bank for "حروف مع حسين" — for every Arabic letter there are
-// questions whose ANSWER starts with that letter.
+// Question bank for "حروف مع حسين" — SERVER-SIDE module.
+//
+// Single source of truth: src/data/arabic_letters_question_bank_2800.json
+// (2800 questions, 28 letters, 100 questions per letter, 16 categories,
+// 3 difficulty levels). The JSON is loaded as-is: questions, answers,
+// identifiers, categories and structure are preserved untouched.
+//
+// IMPORTANT: never import this file from a client component — it would ship
+// the whole answer bank to the browser. The frontend only receives bank
+// metadata (BANK_INFO fields) through the letters service broadcast.
 // ---------------------------------------------------------------------------
 
+import rawBankJson from '../data/arabic_letters_question_bank_2800.json'
+import { ARABIC_LETTERS, type LettersBankInfo } from './letters-types'
+
+export { ARABIC_LETTERS }
+
+/** Raw question shape exactly as stored in the JSON. */
 export interface BankQuestion {
-  /** Stable id like "أ:1" */
+  /** Stable id from the bank, e.g. "Q0001". */
   id: string
-  /** The Arabic letter this question belongs to */
+  /** Bank letter key (plain alef "ا" style), e.g. "ا". */
   letter: string
-  /** The question text (Arabic, short and family-friendly) */
+  category: string
+  subcategory: string
+  /** سهل | متوسط | صعب */
+  difficulty: string
+  /** Question text (Arabic). */
   q: string
-  /** The answer (Arabic, must start with the letter) */
+  /** Display answer (Arabic, original spelling preserved). */
   a: string
+  /** Precomputed normalized answer from the bank (used for verification). */
+  na: string
 }
 
-export const ARABIC_LETTERS: string[] = [
-  'أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر',
-  'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف',
-  'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي',
-]
-
-export const QUESTION_BANK: Record<string, BankQuestion[]> = {
-  'أ': [
-    { id: 'أ:1', letter: 'أ', q: 'ما الحيوان الذي يُلقَّب بملك الغابة؟', a: 'الأسد' },
-    { id: 'أ:2', letter: 'أ', q: 'ما الحيوان سريع القفز الذي يحب أكل الجزر؟', a: 'الأرنب' },
-    { id: 'أ:3', letter: 'أ', q: 'ما الفاكهة الاستوائية التي قشرها شوكي؟', a: 'الأناناس' },
-  ],
-  'ب': [
-    { id: 'ب:1', letter: 'ب', q: 'ما المكان الذي نسكن فيه مع عائلتنا؟', a: 'البيت' },
-    { id: 'ب:2', letter: 'ب', q: 'ما الماء المالح الواسع الذي تبحر فيه السفن؟', a: 'البحر' },
-    { id: 'ب:3', letter: 'ب', q: 'ما الطائر المائي الذي يعوم في البرك ويصدر صوت «كواك»؟', a: 'البطة' },
-  ],
-  'ت': [
-    { id: 'ت:1', letter: 'ت', q: 'ما الفاكهة التي يقال: واحدة منها يوميًا تُبعد الطبيب؟', a: 'التفاح' },
-    { id: 'ت:2', letter: 'ت', q: 'ما الزاحف المفترس ذو الفم الواسع الذي يسكن الأنهار؟', a: 'التمساح' },
-    { id: 'ت:3', letter: 'ت', q: 'ما الجهاز الذي نشاهد عليه البرامج والأفلام؟', a: 'التلفاز' },
-  ],
-  'ث': [
-    { id: 'ث:1', letter: 'ث', q: 'ما الأبيض البارد الذي يتساقط في فصل الشتاء؟', a: 'الثلج' },
-    { id: 'ث:2', letter: 'ث', q: 'ما الحيوان الماكر الذي اشتهر بالخديعة في القصص؟', a: 'الثعلب' },
-    { id: 'ث:3', letter: 'ث', q: 'كم عدد أرجل العنكبوت؟', a: 'ثمانية' },
-  ],
-  'ج': [
-    { id: 'ج:1', letter: 'ج', q: 'ما الحيوان الذي يُلقَّب بسفينة الصحراء؟', a: 'الجمل' },
-    { id: 'ج:2', letter: 'ج', q: 'ما المرتفع الصخري الكبير على سطح الأرض؟', a: 'الجبل' },
-    { id: 'ج:3', letter: 'ج', q: 'ما المادة الغذائية الصفراء التي تُصنع من الحليب؟', a: 'الجبن' },
-  ],
-  'ح': [
-    { id: 'ح:1', letter: 'ح', q: 'ما الحيوان الأصيل الذي يُركَب ويصهل؟', a: 'الحصان' },
-    { id: 'ح:2', letter: 'ح', q: 'ما أكبر كائن يعيش في المحيط؟', a: 'الحوت' },
-    { id: 'ح:3', letter: 'ح', q: 'ما المكان الجميل الذي تُزرع فيه الأزهار؟', a: 'الحديقة' },
-  ],
-  'خ': [
-    { id: 'خ:1', letter: 'خ', q: 'ما الحيوان الذي يثغو ويُذبح في عيد الأضحى؟', a: 'الخروف' },
-    { id: 'خ:2', letter: 'خ', q: 'ما الطعام الأساسي الذي يأتي من الفرن أرغفةً؟', a: 'الخبز' },
-    { id: 'خ:3', letter: 'خ', q: 'ما بيت البدو الذي يُنصَب من القماش في البر؟', a: 'الخيمة' },
-  ],
-  'د': [
-    { id: 'د:1', letter: 'د', q: 'ما الطائر الذي يصيح عند الفجر؟', a: 'الديك' },
-    { id: 'د:2', letter: 'د', q: 'ما الحيوان القوي الذي يحب العسل وينام في الشتاء؟', a: 'الدب' },
-    { id: 'د:3', letter: 'د', q: 'ما الذي نكتب فيه دروسنا في المدرسة؟', a: 'الدفتر' },
-  ],
-  'ذ': [
-    { id: 'ذ:1', letter: 'ذ', q: 'ما النبات الذي تُصنع منه حبوب الفشار؟', a: 'الذرة' },
-    { id: 'ذ:2', letter: 'ذ', q: 'ما الحيوان الضاري الذي يعوي ويُشبه الكلب؟', a: 'الذئب' },
-    { id: 'ذ:3', letter: 'ذ', q: 'ما الجزء الخلفي من جسم الحيوان؟', a: 'الذيل' },
-  ],
-  'ر': [
-    { id: 'ر:1', letter: 'ر', q: 'ما الذي تتكون منه كثبان الصحراء؟', a: 'الرمل' },
-    { id: 'ر:2', letter: 'ر', q: 'ما الفاكهة التي إن فُتحت تساقط منها حبٌّ حمراء؟', a: 'الرمان' },
-    { id: 'ر:3', letter: 'ر', q: 'ما الجهاز الذي نستمع به إلى الإذاعة؟', a: 'الراديو' },
-  ],
-  'ز': [
-    { id: 'ز:1', letter: 'ز', q: 'ما الحيوان الأطول رقبةً في العالم؟', a: 'الزرافة' },
-    { id: 'ز:2', letter: 'ز', q: 'ما الجزء الملوَّن الجميل من النبات؟', a: 'الزهرة' },
-    { id: 'ز:3', letter: 'ز', q: 'ما الشجرة المباركة التي يُستخرج منها الزيت؟', a: 'الزيتون' },
-  ],
-  'س': [
-    { id: 'س:1', letter: 'س', q: 'ما الأداة التي تخبرنا عن الوقت؟', a: 'الساعة' },
-    { id: 'س:2', letter: 'س', q: 'ما المركبة ذات الأربع عجلات التي نتنقل بها؟', a: 'السيارة' },
-    { id: 'س:3', letter: 'س', q: 'ما الكائن الذي يعيش في الماء ويتنفس بالخياشيم؟', a: 'السمك' },
-  ],
-  'ش': [
-    { id: 'ش:1', letter: 'ش', q: 'ما النجم الذي يضيء الأرض في النهار؟', a: 'الشمس' },
-    { id: 'ش:2', letter: 'ش', q: 'ما النبات الكبير ذو الجذع الذي نأكل من ثماره؟', a: 'الشجرة' },
-    { id: 'ش:3', letter: 'ش', q: 'ما المشروب الساخن الذي يُقدَّم في المجالس؟', a: 'الشاي' },
-  ],
-  'ص': [
-    { id: 'ص:1', letter: 'ص', q: 'ما الطائر الجارح الذي يُستخدم في القنص؟', a: 'الصقر' },
-    { id: 'ص:2', letter: 'ص', q: 'ما الذي ينطلق إلى الفضاء حاملًا الرواد؟', a: 'الصاروخ' },
-    { id: 'ص:3', letter: 'ص', q: 'ما العبادة التي تؤدى خمس مرات في اليوم؟', a: 'الصلاة' },
-  ],
-  'ض': [
-    { id: 'ض:1', letter: 'ض', q: 'ما الذي يطرد الظلام عند إشعال المصباح؟', a: 'الضوء' },
-    { id: 'ض:2', letter: 'ض', q: 'ما الحيوان البرمائي الذي يقفز وينقيع؟', a: 'الضفدع' },
-    { id: 'ض:3', letter: 'ض', q: 'ما السن الكبير الذي يقع في آخر الفك؟', a: 'الضرس' },
-  ],
-  'ط': [
-    { id: 'ط:1', letter: 'ط', q: 'ما وسيلة النقل التي تحلق في السماء؟', a: 'الطائرة' },
-    { id: 'ط:2', letter: 'ط', q: 'ما الطائر الذي يفتح ذيله كالمروحة؟', a: 'الطاووس' },
-    { id: 'ط:3', letter: 'ط', q: 'من الذي نزوره لنحصل على الدواء؟', a: 'الطبيب' },
-  ],
-  'ظ': [
-    { id: 'ظ:1', letter: 'ظ', q: 'ما الذي يشكِّله الجسم حين يحجب الشمس؟', a: 'الظل' },
-    { id: 'ظ:2', letter: 'ظ', q: 'ما الغلاف الورقي الذي توضع فيه الرسالة؟', a: 'الظرف' },
-    { id: 'ظ:3', letter: 'ظ', q: 'ما الجزء الصلب الذي نقصه من أطراف أصابعنا؟', a: 'الظفر' },
-  ],
-  'ع': [
-    { id: 'ع:1', letter: 'ع', q: 'ما العضو الذي نرى به؟', a: 'العين' },
-    { id: 'ع:2', letter: 'ع', q: 'ما الفاكهة التي تنمو في عناقيد؟', a: 'العنب' },
-    { id: 'ع:3', letter: 'ع', q: 'ما الطائر الصغير الذي يغرِّد على الأشجار؟', a: 'العصفور' },
-  ],
-  'غ': [
-    { id: 'غ:1', letter: 'غ', q: 'ما الحيوان الرشيق الجميل الذي يرعى في البر؟', a: 'الغزال' },
-    { id: 'غ:2', letter: 'غ', q: 'ما الأبيض العائم في السماء الذي يُمطرنا؟', a: 'الغيمة' },
-    { id: 'غ:3', letter: 'غ', q: 'ما الجهاز المنزلي الذي نغسل فيه الملابس؟', a: 'الغسالة' },
-  ],
-  'ف': [
-    { id: 'ف:1', letter: 'ف', q: 'ما الحيوان الضخم الذي يمشي بخرطومه؟', a: 'الفيل' },
-    { id: 'ف:2', letter: 'ف', q: 'ما الفاكهة الحمراء الصغيرة المكسوَّة بحبوب بيضاء؟', a: 'الفراولة' },
-    { id: 'ف:3', letter: 'ف', q: 'ما القارض الصغير الذي يهرب من القط؟', a: 'الفأر' },
-  ],
-  'ق': [
-    { id: 'ق:1', letter: 'ق', q: 'ما القرص الذي يضيء الليل ويزداد وينقص؟', a: 'القمر' },
-    { id: 'ق:2', letter: 'ق', q: 'ما الحيوان الأليف الذي يموء ويحب الحليب؟', a: 'القط' },
-    { id: 'ق:3', letter: 'ق', q: 'ما الأداة التي نكتب بها على الورق؟', a: 'القلم' },
-  ],
-  'ك': [
-    { id: 'ك:1', letter: 'ك', q: 'ما الشيء المكون من صفحات نقرأ فيه؟', a: 'الكتاب' },
-    { id: 'ك:2', letter: 'ك', q: 'ما الشيء المستدير الذي يُركَل في الملعب؟', a: 'الكرة' },
-    { id: 'ك:3', letter: 'ك', q: 'ما الحيوان الأسترالي الذي يحمل صغيره في جيب بطنه؟', a: 'الكنغر' },
-  ],
-  'ل': [
-    { id: 'ل:1', letter: 'ل', q: 'ما الفاكهة الحمضية التي عصيرها حامض ولونها أصفر؟', a: 'الليمون' },
-    { id: 'ل:2', letter: 'ل', q: 'ما الشيء الذي يتسلى به الأطفال؟', a: 'اللعبة' },
-    { id: 'ل:3', letter: 'ل', q: 'ما الوقت الذي تغيب فيه الشمس وتظهر النجوم؟', a: 'الليل' },
-  ],
-  'م': [
-    { id: 'م:1', letter: 'م', q: 'ما المكان الذي نتعلم فيه؟', a: 'المدرسة' },
-    { id: 'م:2', letter: 'م', q: 'ما المكان الذي يُرفع فيه المؤذن للصلاة؟', a: 'المسجد' },
-    { id: 'م:3', letter: 'م', q: 'ما الذي تنزله السماء في فصل الشتاء؟', a: 'المطر' },
-  ],
-  'ن': [
-    { id: 'ن:1', letter: 'ن', q: 'ما الحشرة المجتهدة التي تصنع العسل؟', a: 'النحلة' },
-    { id: 'ن:2', letter: 'ن', q: 'ما الجرم المتلألئ في سماء الليل؟', a: 'النجمة' },
-    { id: 'ن:3', letter: 'ن', q: 'ما الحيوان المفترس المخطط بالأصفر والأسود؟', a: 'النمر' },
-  ],
-  'ه': [
-    { id: 'ه:1', letter: 'ه', q: 'ما شكل القمر في أول الشهر؟', a: 'الهلال' },
-    { id: 'ه:2', letter: 'ه', q: 'ما الجهاز الذي نتحدث به مع من يبعد عنا؟', a: 'الهاتف' },
-    { id: 'ه:3', letter: 'ه', q: 'ما الشيء الذي نقدمه محبًّا في المناسبات؟', a: 'الهدية' },
-  ],
-  'و': [
-    { id: 'و:1', letter: 'و', q: 'ما الزهرة الحمراء التي تُهدى في المناسبات؟', a: 'الورد' },
-    { id: 'و:2', letter: 'و', q: 'ما جزء الجسم الذي توجد فيه العينان والأنف والفم؟', a: 'الوجه' },
-    { id: 'و:3', letter: 'و', q: 'ما الموضع المنخفض الذي تجري فيه مياه السيول؟', a: 'الوادي' },
-  ],
-  'ي': [
-    { id: 'ي:1', letter: 'ي', q: 'ما العضو الذي نكتب ونتناول الطعام به؟', a: 'اليد' },
-    { id: 'ي:2', letter: 'ي', q: 'ما الحجر الكريم الأحمر الثمين؟', a: 'الياقوت' },
-    { id: 'ي:3', letter: 'ي', q: 'كم تبلغ مدة دوران الأرض حول نفسها مرة كاملة؟', a: 'يوم' },
-  ],
+interface RawQuestion {
+  id: string
+  letter: string
+  category: string
+  subcategory: string
+  difficulty: string
+  question: string
+  answer: string
+  normalized_answer: string
 }
+
+interface RawBank {
+  metadata: {
+    title: string
+    total_questions: number
+    total_letters: number
+    questions_per_letter: number
+    categories: string[]
+    difficulty_levels: string[]
+  }
+  questions_by_letter: Record<string, RawQuestion[]>
+}
+
+const raw = rawBankJson as unknown as RawBank
+
+/**
+ * The bank keys letters with plain alef "ا" while the board shows "أ".
+ * Only the alef differs — every other letter is identical in both spaces.
+ */
+const DISPLAY_TO_BANK: Record<string, string> = { 'أ': 'ا' }
+
+/** Board/display letter -> bank letter key ("أ" -> "ا"). */
+export function toBankLetter(displayLetter: string): string {
+  return DISPLAY_TO_BANK[displayLetter] ?? displayLetter
+}
+
+/** Bank letter key -> board/display letter ("ا" -> "أ"). */
+export function toDisplayLetter(bankLetter: string): string {
+  return bankLetter === 'ا' ? 'أ' : bankLetter
+}
+
+/** Questions grouped by BANK letter key ("ا", "ب", ... 28 keys). */
+export const QUESTION_BANK: Record<string, BankQuestion[]> = Object.fromEntries(
+  Object.entries(raw.questions_by_letter).map(([letter, questions]) => [
+    letter,
+    questions.map(q => ({
+      id: q.id,
+      letter: q.letter,
+      category: q.category,
+      subcategory: q.subcategory,
+      difficulty: q.difficulty,
+      q: q.question,
+      a: q.answer,
+      na: q.normalized_answer,
+    })),
+  ]),
+)
+
+/** Metadata broadcast to every screen — never includes questions/answers. */
+export const BANK_INFO: LettersBankInfo = {
+  totalQuestions: raw.metadata.total_questions,
+  questionsPerLetter: raw.metadata.questions_per_letter,
+  letters: raw.metadata.total_letters,
+  categories: [...raw.metadata.categories],
+  difficulties: [...raw.metadata.difficulty_levels],
+}
+
+export const BANK_TITLE = raw.metadata.title
