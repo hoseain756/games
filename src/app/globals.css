@@ -195,3 +195,44 @@
 .scroll-thin::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* --- Fluid text scale (حروف مع حسين) -------------------------------------
+   Sizes follow the SHORTEST viewport side (vmin) so every text grows on the
+   big TV and shrinks on short/wide phone screens — no wrapping, no crowding.
+   Unlayered on purpose: these always win over static text-* utilities. ----- */
+.text-fluid-2xs {
+  font-size: clamp(0.6rem, 0.3rem + 1.1vmin, 0.78rem);
+}
+.text-fluid-xs {
+  font-size: clamp(0.7rem, 0.4rem + 1.5vmin, 0.95rem);
+}
+.text-fluid-sm {
+  font-size: clamp(0.8rem, 0.5rem + 2vmin, 1.15rem);
+}
+.text-fluid-md {
+  font-size: clamp(0.9rem, 0.55rem + 2.6vmin, 1.35rem);
+}
+.text-fluid-lg {
+  font-size: clamp(1rem, 0.6rem + 3.2vmin, 1.6rem);
+}
+.text-fluid-xl {
+  font-size: clamp(1.15rem, 0.7rem + 4vmin, 1.9rem);
+}
+.text-fluid-2xl {
+  font-size: clamp(1.3rem, 0.8rem + 4.8vmin, 2.4rem);
+}
+.text-fluid-timer {
+  font-size: clamp(2.2rem, 1rem + 10vmin, 5.5rem);
+  line-height: 1;
+}
+
+/* Fluid spacing helpers used with the fluid text on the display screen */
+.px-fluid {
+  padding-inline: clamp(0.85rem, 2.6vmin, 1.6rem);
+}
+.py-fluid-sm {
+  padding-block: clamp(0.35rem, 1vmin, 0.65rem);
+}
+.gap-fluid {
+  gap: clamp(0.6rem, 2vmin, 1.25rem);
+}

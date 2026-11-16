@@ -61,33 +61,35 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
 
   return (
     <div
-      className="flex min-h-screen flex-col text-purple-950"
+      className="flex min-h-screen flex-col text-purple-950 lg:h-screen lg:overflow-hidden"
       style={{
         fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif',
         background: 'linear-gradient(160deg, #fdf3e7 0%, #faebd3 55%, #f7e3c4 100%)',
       }}
     >
       {/* Top bar */}
-      <header className="flex items-center justify-between gap-3 px-5 pt-4">
+      <header className="flex items-center justify-between gap-fluid px-fluid pt-[clamp(0.5rem,1.6vmin,1.25rem)]">
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-2 rounded-full bg-purple-800 px-4 py-2 text-lg font-extrabold text-white shadow-lg">
-            <MonitorPlay className="size-5" aria-hidden="true" />
+          <span className="flex items-center gap-[clamp(0.3rem,1vmin,0.6rem)] rounded-full bg-purple-800 px-fluid py-fluid-sm text-fluid-sm font-extrabold text-white shadow-lg">
+            <MonitorPlay className="size-[clamp(0.95rem,2.4vmin,1.4rem)]" aria-hidden="true" />
             شاشة العرض
           </span>
-          <span className="hidden rounded-full bg-purple-100 px-3 py-1.5 text-sm font-bold text-purple-800 sm:inline">
+          <span className="hidden rounded-full bg-purple-100 px-3 py-1.5 text-fluid-xs font-bold text-purple-800 sm:inline">
             الجولة {Math.max(state.roundNumber, 1)}
           </span>
         </div>
-        <h1 className="text-3xl font-black tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.25)] sm:text-4xl">
-          <span className="text-red-500">حروف</span>{' '}
-          <span className="text-purple-800">مع حسين</span>
+        <h1 className="text-fluid-2xl font-black leading-[1.15] tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.25)]">
+          <span className="whitespace-nowrap">
+            <span className="text-red-500">حروف</span>{' '}
+            <span className="text-purple-800">مع حسين</span>
+          </span>
         </h1>
       </header>
 
       {/* Banner */}
-      <div className="px-5 pt-3">
+      <div className="px-fluid pt-[clamp(0.4rem,1.2vmin,0.85rem)]">
         <p
-          className={`mx-auto w-fit rounded-full px-6 py-2 text-center text-lg font-extrabold shadow-lg sm:text-xl ${banner.className}`}
+          className={`mx-auto w-fit max-w-full rounded-full px-[clamp(1rem,3.2vmin,1.9rem)] py-fluid-sm text-center text-fluid-md font-extrabold shadow-lg ${banner.className}`}
           role="status"
         >
           {banner.text}
@@ -95,8 +97,8 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
       </div>
 
       {/* Main: board + sidebar */}
-      <main className="flex flex-1 flex-col items-stretch gap-4 overflow-hidden p-4 lg:flex-row lg:items-center">
-        <section className="flex min-w-0 flex-1 items-center justify-center">
+      <main className="flex min-h-0 flex-1 flex-col items-stretch gap-fluid overflow-hidden p-[clamp(0.6rem,2vmin,1.25rem)] lg:flex-row">
+        <section className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
           <HexGrid
             layout={state.layout}
             claimed={state.claimed}
@@ -108,12 +110,12 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
                 : null
             }
             winTeam={state.phase === 'game_over' ? state.gameWinner : null}
-            className="h-auto w-full max-w-4xl drop-shadow-[0_14px_20px_rgba(124,58,173,0.35)]"
+            className="h-auto max-h-full w-full max-w-4xl drop-shadow-[0_14px_20px_rgba(124,58,173,0.35)]"
           />
         </section>
 
         {/* Purple sidebar */}
-        <aside className="flex w-full min-w-0 flex-col gap-4 rounded-[2rem] bg-purple-800 p-5 shadow-2xl lg:w-[340px] xl:w-[400px] lg:shrink-0">
+        <aside className="scroll-thin flex w-full min-w-0 flex-col gap-fluid rounded-[2rem] bg-purple-800 p-[clamp(0.8rem,2.4vmin,1.5rem)] shadow-2xl lg:max-h-full lg:w-[clamp(280px,32vmin,420px)] lg:shrink-0 lg:overflow-y-auto">
           {/* Scores */}
           <div className="flex items-center justify-around gap-3">
             {(['A', 'B'] as LettersTeam[]).map(team => (
@@ -121,33 +123,33 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
                 <HexBadge
                   fill={TEAM_COLORS[team].fill}
                   label={String(state.scores[team])}
-                  className="size-16 drop-shadow-md sm:size-20"
+                  className="size-[clamp(3.25rem,10vmin,5rem)] drop-shadow-md"
                 />
-                <span className="text-sm font-bold text-amber-200">{TEAM_LABELS[team]}</span>
+                <span className="text-fluid-xs font-bold text-amber-200">{TEAM_LABELS[team]}</span>
               </div>
             ))}
           </div>
 
           {/* Timer */}
           {state.phase === 'game_over' ? (
-            <div className="rounded-2xl bg-emerald-600 p-4 text-center shadow-lg">
-              <Trophy className="mx-auto size-10 text-amber-300" aria-hidden="true" />
-              <p className="mt-1 text-xl font-black">
+            <div className="rounded-2xl bg-emerald-600 p-[clamp(0.75rem,2vmin,1.25rem)] text-center shadow-lg">
+              <Trophy className="mx-auto size-[clamp(1.75rem,5vmin,2.75rem)] text-amber-300" aria-hidden="true" />
+              <p className="mt-1 text-fluid-lg font-black">
                 {TEAM_LABELS[state.gameWinner ?? 'A']} فاز!
               </p>
             </div>
           ) : remaining !== null ? (
-            <div className="rounded-2xl bg-purple-900/60 p-4 text-center">
-              <p className="flex items-center justify-center gap-2 text-sm font-bold text-purple-200">
-                <Hourglass className="size-4" aria-hidden="true" />
+            <div className="rounded-2xl bg-purple-900/60 p-[clamp(0.75rem,2vmin,1.25rem)] text-center">
+              <p className="flex items-center justify-center gap-2 text-fluid-xs font-bold text-purple-200">
+                <Hourglass className="size-[clamp(0.85rem,2vmin,1.15rem)]" aria-hidden="true" />
                 الوقت المتبقي
               </p>
               <p
-                className={`text-6xl font-black tabular-nums ${remaining <= 5 ? 'animate-pulse text-red-400' : 'text-amber-200'}`}
+                className={`text-fluid-timer font-black tabular-nums ${remaining <= 5 ? 'animate-pulse text-red-400' : 'text-amber-200'}`}
               >
                 {remaining}
               </p>
-              <div className="mt-2 h-3 overflow-hidden rounded-full bg-purple-950">
+              <div className="mt-2 h-[clamp(0.45rem,1.1vmin,0.8rem)] overflow-hidden rounded-full bg-purple-950">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${remaining <= 5 ? 'bg-red-400' : 'bg-amber-300'}`}
                   style={{ width: `${timerRatio * 100}%` }}
@@ -155,7 +157,7 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl bg-purple-900/60 p-4 text-center text-lg font-bold text-purple-200">
+            <div className="rounded-2xl bg-purple-900/60 p-[clamp(0.75rem,2vmin,1.25rem)] text-center text-fluid-sm font-bold text-purple-200">
               {state.phase === 'open'
                 ? 'الأزرار مفتوحة — استعداداً للضغط!'
                 : 'لا وقت شغال حالياً'}
@@ -164,26 +166,26 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
 
           {/* Question */}
           {state.question ? (
-            <div className="rounded-2xl bg-white p-4 text-purple-900 shadow-inner">
-              <p className="flex items-center gap-2 text-sm font-extrabold text-purple-500">
-                <Lightbulb className="size-4" aria-hidden="true" />
+            <div className="rounded-2xl bg-white p-[clamp(0.75rem,2vmin,1.25rem)] text-purple-900 shadow-inner">
+              <p className="flex items-center gap-2 text-fluid-xs font-extrabold text-purple-500">
+                <Lightbulb className="size-[clamp(0.85rem,2vmin,1.15rem)] shrink-0" aria-hidden="true" />
                 السؤال — حرف {state.question.letter}
               </p>
-              <p className="mt-1 text-xl font-extrabold leading-snug">{state.question.q}</p>
+              <p className="mt-1 text-fluid-md font-extrabold leading-snug">{state.question.q}</p>
               {state.question.a && state.phase === 'round_end' ? (
-                <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-lg font-black text-emerald-700">
+                <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-fluid-sm font-black text-emerald-700">
                   الجواب: {state.question.a}
                 </p>
               ) : (
-                <p className="mt-2 flex items-center gap-1.5 text-sm font-bold text-purple-300">
-                  <Users className="size-4" aria-hidden="true" />
+                <p className="mt-2 flex items-center gap-1.5 text-fluid-xs font-bold text-purple-300">
+                  <Users className="size-[clamp(0.85rem,2vmin,1.15rem)] shrink-0" aria-hidden="true" />
                   الجواب عند المقدم فقط
                 </p>
               )}
             </div>
           ) : (
-            <div className="rounded-2xl bg-purple-900/60 p-4 text-center text-purple-200">
-              <p className="text-sm font-bold">
+            <div className="rounded-2xl bg-purple-900/60 p-[clamp(0.75rem,2vmin,1.25rem)] text-center text-purple-200">
+              <p className="text-fluid-xs font-bold">
                 {state.phase === 'choosing'
                   ? 'الفريق يختار خلية حرف الآن...'
                   : 'تظهر الأسئلة هنا بعد اختيار الحرف'}
@@ -192,11 +194,11 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
           )}
 
           {/* Turn indicator */}
-          <div className="flex items-center justify-center gap-2 rounded-2xl bg-purple-900/60 p-3">
+          <div className="flex items-center justify-center gap-2 rounded-2xl bg-purple-900/60 p-[clamp(0.55rem,1.5vmin,1rem)]">
             {(['A', 'B'] as LettersTeam[]).map(team => (
               <span
                 key={team}
-                className={`rounded-full border-2 px-3 py-1.5 text-sm font-extrabold transition-colors ${
+                className={`rounded-full border-2 px-[clamp(0.55rem,1.6vmin,1rem)] py-[clamp(0.3rem,0.9vmin,0.6rem)] text-fluid-xs font-extrabold transition-colors ${
                   state.activeTeam === team
                     ? 'border-amber-300 bg-amber-300 text-purple-900'
                     : 'border-purple-600 text-purple-300'
@@ -208,7 +210,7 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
           </div>
 
           {/* Board legend: which bands belong to which team */}
-          <div className="space-y-1.5 rounded-2xl bg-purple-900/60 p-3 text-xs font-bold text-purple-100">
+          <div className="space-y-1.5 rounded-2xl bg-purple-900/60 p-[clamp(0.55rem,1.5vmin,1rem)] text-fluid-2xs font-bold text-purple-100">
             <p className="flex items-center gap-2">
               <span className="inline-block size-3 shrink-0 rounded-sm bg-green-500" aria-hidden="true" />
               الفريق الأول: {TEAM_MISSIONS.A}

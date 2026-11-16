@@ -250,7 +250,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
               ))}
               <div className="text-center">
                 {remaining !== null ? (
-                  <p className={`text-4xl font-black tabular-nums ${remaining <= 5 ? 'animate-pulse text-red-600' : 'text-purple-800'}`}>
+                  <p className={`text-3xl font-black tabular-nums sm:text-4xl ${remaining <= 5 ? 'animate-pulse text-red-600' : 'text-purple-800'}`}>
                     {remaining}
                   </p>
                 ) : (
@@ -303,7 +303,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                   {TEAM_LABELS[state.activeTeam ?? 'A']} يختار حرفاً من اللوحة...
                 </p>
                 {remaining !== null && (
-                  <p className={`text-5xl font-black tabular-nums ${remaining <= 5 ? 'animate-pulse text-red-600' : 'text-purple-800'}`}>
+                  <p className={`text-4xl font-black tabular-nums sm:text-5xl ${remaining <= 5 ? 'animate-pulse text-red-600' : 'text-purple-800'}`}>
                     {remaining}
                   </p>
                 )}
@@ -333,17 +333,17 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                     سؤال {TEAM_LABELS[state.activeTeam ?? 'A']}
                   </span>
                   {remaining !== null && (
-                    <span className={`text-2xl font-black tabular-nums ${remaining <= 5 ? 'animate-pulse text-red-600' : 'text-purple-800'}`}>
+                    <span className={`text-xl font-black tabular-nums sm:text-2xl ${remaining <= 5 ? 'animate-pulse text-red-600' : 'text-purple-800'}`}>
                       {remaining} ث
                     </span>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
-                <p className="rounded-2xl bg-purple-50 p-4 text-xl font-extrabold leading-relaxed text-purple-900">
+                <p className="rounded-2xl bg-purple-50 p-4 text-lg font-extrabold leading-relaxed text-purple-900 sm:text-xl">
                   {state.question.q}
                 </p>
-                <p className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 text-xl font-black text-emerald-700">
+                <p className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 text-lg font-black text-emerald-700 sm:text-xl">
                   الجواب: {state.question.a}
                 </p>
                 {state.locked && (
@@ -399,7 +399,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                   className="size-12 text-amber-500 drop-shadow"
                   aria-hidden="true"
                 />
-                <p className="text-2xl font-black">
+                <p className="text-xl font-black sm:text-2xl">
                   {TEAM_LABELS[state.gameWinner ?? 'A']} يفوز باللعبة!
                 </p>
                 <p className="text-sm font-bold text-emerald-700">وصّل شريطيه بالخلايا — مبروك!</p>
@@ -429,7 +429,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
           {state.phase === 'round_end' && (
             <Card className={`rounded-3xl border-2 ${state.result?.outcome === 'correct' ? 'border-emerald-300' : ''}`}>
               <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
-                <p className="text-xl font-black">
+                <p className="text-lg font-black sm:text-xl">
                   {state.result?.outcome === 'correct'
                     ? `${TEAM_LABELS[state.result.team ?? 'A']} أجاب صح — +1`
                     : 'انتهت الجولة دون إجابة صحيحة'}
