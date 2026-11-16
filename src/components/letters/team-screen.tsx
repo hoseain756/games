@@ -1,0 +1,266 @@
+'use client'
+
+import { useMemo } from 'react'
+import {
+  Bell,
+  CheckCircle2,
+  Hourglass,
+  Lock,
+  PencilLine,
+  Zap,
+} from 'lucide-react'
+import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
+import {
+  TEAM_COLORS,
+  TEAM_LABELS,
+  type LettersState,
+  type LettersTeam,
+} from '@/lib/letters-types'
+
+// ---------------------------------------------------------------------------
+// Team screen (phone): huge buzzer button, letter picker on the team's turn,
+// the question WITHOUT the answer, and the live timer.
+// ---------------------------------------------------------------------------
+
+interface TeamScreenProps {
+  state: LettersState
+  team: LettersTeam
+  remaining: number | null
+  onPick: (letter: string) => void
+  onReady: () => void
+  onBuzz: () => void
+}
+
+function TimerPill({ remaining }: { remaining: number | null }) {
+  if (remaining === null) return null
+  return (
+    <span
+      className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-2xl font-black tabular-nums shadow ${
+        remaining <= 5 ? 'animate-pulse bg-red-600 text-white' : 'bg-purple-800 text-amber-200'
+      }`}
+      role="timer"
+      aria-label={`الوقت المتبقي ${remaining} ثانية`}
+    >
+      <Hourglass className="size-5" aria-hidden="true" />
+      {remaining}
+    </span>
+  )
+}
+
+export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: TeamScreenProps) {
+  const isMyTurn = state.activeTeam === team
+  const otherTeam: LettersTeam = team === 'A' ? 'B' : 'A'
+  const color = TEAM_COLORS[team]
+
+  const selectable = useMemo(() => {
+    if (state.phase !== 'choosing' || !isMyTurn) return null
+    return new Set(state.layout.filter(letter => !state.claimed[letter]))
+  }, [state.phase, state.layout, state.claimed, isMyTurn])
+
+  const showQuestion =
+    state.question !== null && ['team_turn', 'open', 'buzz_answer'].includes(state.phase)
+
+  // ---- Huge button state machine ------------------------------------------
+  let button: {
+    label: string
+    icon: typeof Zap
+    enabled: boolean
+    classes: string
+    action?: () => void
+  }
+
+  if (state.phase === 'open') {
+    button = {
+      label: 'اضغط بسرعة!!',
+      icon: Zap,
+      enabled: true,
+      classes: 'bg-gradient-to-b from-red-500 to-red-700 border-red-800 shadow-[0_10px_0_#7f1d1d] animate-pulse',
+      action: onBuzz,
+    }
+  } else if (state.phase === 'team_turn' && isMyTurn) {
+    button = state.locked
+      ? {
+          label: 'ثبّتوا الجواب! جاوبوا بصوت عالي',
+          icon: CheckCircle2,
+          enabled: false,
+          classes: 'bg-emerald-600 border-emerald-800 shadow-[0_10px_0_#065f46]',
+        }
+      : {
+          label: 'عرفنا الجواب!',
+          icon: CheckCircle2,
+          enabled: true,
+          classes: `${color.fill === '#fbbf24' ? 'bg-gradient-to-b from-amber-400 to-amber-500 border-amber-600 shadow-[0_10px_0_#92400e]' : 'bg-gradient-to-b from-red-400 to-red-500 border-red-600 shadow-[0_10px_0_#991b1b]'} animate-pulse`,
+          action: onReady,
+        }
+  } else if (state.phase === 'buzz_answer' && isMyTurn) {
+    button = {
+      label: 'جاوبوا الآن بصوت عالٍ!',
+      icon: Bell,
+      enabled: false,
+      classes: 'bg-emerald-600 border-emerald-800 shadow-[0_10px_0_#065f46]',
+    }
+  } else if (state.phase === 'buzz_answer') {
+    button = {
+      label: `${TEAM_LABELS[otherTeam]} سبقكم للضغط!`,
+      icon: Lock,
+      enabled: false,
+      classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+    }
+  } else if (state.phase === 'choosing') {
+    button = isMyTurn
+      ? {
+          label: 'اختاروا خلية حرف من اللوحة',
+          icon: PencilLine,
+          enabled: false,
+          classes: 'bg-gradient-to-b from-purple-500 to-purple-700 border-purple-800 shadow-[0_10px_0_#4c1d95]',
+        }
+      : {
+          label: 'الدور على الفريق الآخر',
+          icon: Lock,
+          enabled: false,
+          classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+        }
+  } else {
+    button = {
+      label: 'استعدوا... بانتظار المقدم',
+      icon: Lock,
+      enabled: false,
+      classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+    }
+  }
+
+  const ButtonIcon = button.icon
+
+  const statusText = (() => {
+    switch (state.phase) {
+      case 'lobby':
+        return 'بانتظار المقدم لبدء الجلسة...'
+      case 'idle':
+        return state.lastEvent ?? 'استعدوا!'
+      case 'choosing':
+        return isMyTurn ? 'دوركم! اختاروا حرفاً بسرعة' : `${TEAM_LABELS[state.activeTeam ?? 'A']} يختار حرفاً...`
+      case 'team_turn':
+        return isMyTurn ? 'دوركم — ناقشوا وجاوبوا!' : `دور ${TEAM_LABELS[state.activeTeam ?? 'A']} — استعدوا للسرقة!`
+      case 'open':
+        return 'انفتحت الأزرار! أول من يضغط يجاوب'
+      case 'buzz_answer':
+        return isMyTurn ? 'سبقتم الجميع — جاوبوا الآن!' : `${TEAM_LABELS[otherTeam]} يجيب الآن...`
+      case 'round_end':
+        return state.result?.outcome === 'correct'
+          ? `${state.result.team === team ? 'أحسنتم! كسبتوا الخلية' : `${TEAM_LABELS[state.result.team ?? 'A']} كسب الخلية`}`
+          : 'انتهت الجولة دون إجابة'
+    }
+  })()
+
+  return (
+    <div
+      className="flex min-h-screen flex-col bg-[#fdf3e7] text-purple-950"
+      style={{ fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif' }}
+    >
+      {/* Header */}
+      <header className="flex items-center justify-between gap-2 px-4 pt-4">
+        <div
+          className={`flex items-center gap-2 rounded-full border-2 px-3 py-1.5 font-extrabold ${color.chip}`}
+        >
+          <HexBadge
+            fill={color.fill}
+            label={String(state.scores[team])}
+            className="size-8"
+            fontSize={40}
+          />
+          <span>{TEAM_LABELS[team]}</span>
+        </div>
+        <span className="rounded-full bg-purple-800 px-3 py-1.5 text-sm font-extrabold text-amber-200">
+          حروف مع حسين
+        </span>
+      </header>
+
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 pb-44 pt-3">
+        {/* Status + timer */}
+        <section className="flex items-center justify-between gap-2">
+          <p className="text-base font-extrabold leading-snug" role="status">
+            {statusText}
+          </p>
+          <TimerPill remaining={remaining} />
+        </section>
+
+        {/* Letter picking phase */}
+        {state.phase === 'choosing' && (
+          <section className="rounded-3xl border-4 border-purple-200 bg-white p-3 shadow-lg">
+            <p className="mb-2 text-center text-sm font-extrabold text-purple-500">
+              {isMyTurn ? 'اضغطوا على خلية الحرف المطلوب' : 'اللوحة مقفلة — الدور على الفريق الآخر'}
+            </p>
+            <HexGrid
+              layout={state.layout}
+              claimed={state.claimed}
+              selectable={selectable}
+              onPick={onPick}
+              className="h-auto w-full"
+            />
+          </section>
+        )}
+
+        {/* Question (without the answer!) */}
+        {showQuestion && state.question && (
+          <section className="rounded-3xl border-4 border-purple-200 bg-white p-4 shadow-lg">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="rounded-full bg-purple-100 px-3 py-1 text-sm font-extrabold text-purple-600">
+                سؤال حرف {state.question.letter}
+              </span>
+              {state.activeLetter && (
+                <HexBadge
+                  fill={color.fill}
+                  label={state.activeLetter}
+                  className="size-10"
+                  fontSize={36}
+                />
+              )}
+            </div>
+            <p className="text-2xl font-extrabold leading-relaxed">{state.question.q}</p>
+            {state.phase === 'round_end' && state.question.a ? (
+              <p className="mt-3 rounded-xl bg-emerald-100 px-3 py-2 text-lg font-black text-emerald-700">
+                الجواب: {state.question.a}
+              </p>
+            ) : null}
+          </section>
+        )}
+
+        {/* Round result */}
+        {state.phase === 'round_end' && state.result && (
+          <section
+            className={`rounded-3xl border-4 p-4 text-center shadow-lg ${
+              state.result.outcome === 'correct' ? 'border-emerald-300 bg-emerald-50' : 'border-purple-200 bg-white'
+            }`}
+          >
+            <p className="text-lg font-black">
+              {state.result.outcome === 'correct'
+                ? `${TEAM_LABELS[state.result.team ?? 'A']} أجاب صح — +1!`
+                : 'لا أحد أجاب صح هذه الجولة'}
+            </p>
+            {state.result.answer && (
+              <p className="mt-1 text-base font-bold text-purple-500">الجواب: {state.result.answer}</p>
+            )}
+            <p className="mt-2 text-sm font-bold text-purple-400">بانتظار المقدم لفتح الجولة التالية</p>
+          </section>
+        )}
+      </main>
+
+      {/* Huge buzzer — pinned to the bottom */}
+      <div className="fixed inset-x-0 bottom-0 border-t-4 border-purple-100 bg-[#fdf3e7]/95 p-4 backdrop-blur"
+        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      >
+        <div className="mx-auto w-full max-w-md">
+          <button
+            type="button"
+            disabled={!button.enabled}
+            onClick={button.action}
+            className={`flex h-32 w-full items-center justify-center gap-3 rounded-[2.5rem] border-4 text-2xl font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:active:scale-100 sm:h-36 ${button.classes}`}
+          >
+            <ButtonIcon className="size-10" aria-hidden="true" />
+            {button.label}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Tajawal } from "next/font/google";
+import { Baloo_Bhaijaan_2, Tajawal } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -11,10 +11,17 @@ const tajawal = Tajawal({
   display: "swap",
 });
 
+const baloo = Baloo_Bhaijaan_2({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-baloo",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "لعبة الأسئلة — العبوا معاً عبر QR",
+  title: "الألعاب الجماعية — لعبة الصور وحروف مع حسين",
   description:
-    "لعبة أسئلة جماعية عبر الجوالات: المضيف يعرض رمز QR، كل لاعب يصور نفسه ويدخل اسمه، ويظهر السؤال على جوال صاحب الدور أثناء اللعب.",
+    "منصة ألعاب جماعية عبر الجوالات: لعبة الصور والأسئلة بـ QR، ولعبة حروف مع حسين بخلايا سداسية وفريقين وزر ضخم وأسرع إجابة.",
   keywords: ["لعبة أسئلة", "QR", "ألعاب جماعية", "party game"],
   icons: {
     icon: "/logo.svg",
@@ -39,7 +46,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body
-        className={`${tajawal.variable} font-sans antialiased bg-background text-foreground min-h-screen`}
+        className={`${tajawal.variable} ${baloo.variable} font-sans antialiased bg-background text-foreground min-h-screen`}
       >
         <ThemeProvider
           attribute="class"

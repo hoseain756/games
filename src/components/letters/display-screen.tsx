@@ -1,0 +1,195 @@
+'use client'
+
+import { Hourglass, Lightbulb, MonitorPlay, Users } from 'lucide-react'
+import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
+import {
+  TEAM_COLORS,
+  TEAM_LABELS,
+  type LettersState,
+  type LettersTeam,
+} from '@/lib/letters-types'
+
+// ---------------------------------------------------------------------------
+// Big audience screen: the shuffled hexagon board + purple sidebar with the
+// title, live scores, timer and the current question (without the answer
+// until the round ends). Background mimics the orange/yellow diagonal design.
+// ---------------------------------------------------------------------------
+
+interface DisplayScreenProps {
+  state: LettersState
+  remaining: number | null
+}
+
+function phaseBanner(state: LettersState): { text: string; className: string } {
+  const team = state.activeTeam ? TEAM_LABELS[state.activeTeam] : ''
+  switch (state.phase) {
+    case 'lobby':
+      return { text: 'بانتظار المقدم لبدء الجلسة...', className: 'bg-purple-800 text-white' }
+    case 'idle':
+      return { text: 'استعدوا — المقدم سيفتح الدور قريباً', className: 'bg-purple-800 text-white' }
+    case 'choosing':
+      return { text: `${team} يختار حرفاً من الخلايا...`, className: 'bg-purple-800 text-white' }
+    case 'team_turn':
+      return { text: `الدور على ${team} — جاوبوا!`, className: 'bg-purple-800 text-white' }
+    case 'open':
+      return { text: 'انفتحت الأزرار للجميع — أسرع فريق يضغط يجاوب!', className: 'bg-red-600 text-white animate-pulse' }
+    case 'buzz_answer':
+      return { text: `${team} ضغط أولاً — جاوبوا الآن!`, className: 'bg-red-600 text-white' }
+    case 'round_end':
+      return state.result?.outcome === 'correct' && state.result.team
+        ? {
+            text: `إجابة صحيحة! ${TEAM_LABELS[state.result.team]} يفوز بالخلية (+1)`,
+            className: 'bg-emerald-600 text-white',
+          }
+        : { text: 'انتهت الجولة — شوفوا الجواب الصحيح', className: 'bg-purple-800 text-white' }
+  }
+}
+
+export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
+  const banner = phaseBanner(state)
+
+  const timerRatio =
+    remaining !== null && state.phaseEndsAt
+      ? Math.max(0, Math.min(1, remaining / Math.max(state.answerTime, state.chooseTime, 1)))
+      : 0
+
+  return (
+    <div
+      className="flex min-h-screen flex-col text-white"
+      style={{
+        fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif',
+        background:
+          'linear-gradient(115deg, #f97316 0%, #f97316 52%, #fbbf24 52%, #fbbf24 80%, #ea580c 80%)',
+      }}
+    >
+      {/* Top bar */}
+      <header className="flex items-center justify-between gap-3 px-5 pt-4">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-2 rounded-full bg-purple-800 px-4 py-2 text-lg font-extrabold shadow-lg">
+            <MonitorPlay className="size-5" aria-hidden="true" />
+            شاشة العرض
+          </span>
+          <span className="hidden rounded-full bg-white/20 px-3 py-1.5 text-sm font-bold backdrop-blur sm:inline">
+            الجولة {Math.max(state.roundNumber, 1)}
+          </span>
+        </div>
+        <h1 className="text-3xl font-black tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.9)] sm:text-4xl">
+          <span className="text-red-500">حروف</span>{' '}
+          <span className="text-amber-200">مع حسين</span>
+        </h1>
+      </header>
+
+      {/* Banner */}
+      <div className="px-5 pt-3">
+        <p
+          className={`mx-auto w-fit rounded-full px-6 py-2 text-center text-lg font-extrabold shadow-lg sm:text-xl ${banner.className}`}
+          role="status"
+        >
+          {banner.text}
+        </p>
+      </div>
+
+      {/* Main: board + sidebar */}
+      <main className="flex flex-1 flex-col items-stretch gap-4 overflow-hidden p-4 lg:flex-row lg:items-center">
+        <section className="flex min-w-0 flex-1 items-center justify-center">
+          <HexGrid
+            layout={state.layout}
+            claimed={state.claimed}
+            activeLetter={state.phase === 'choosing' ? null : state.activeLetter}
+            selectable={null}
+            className="h-auto w-full max-w-4xl drop-shadow-[0_14px_20px_rgba(124,58,173,0.35)]"
+          />
+        </section>
+
+        {/* Purple sidebar */}
+        <aside className="flex w-full min-w-0 flex-col gap-4 rounded-[2rem] bg-purple-800 p-5 shadow-2xl lg:w-[340px] xl:w-[400px] lg:shrink-0">
+          {/* Scores */}
+          <div className="flex items-center justify-around gap-3">
+            {(['A', 'B'] as LettersTeam[]).map(team => (
+              <div key={team} className="flex flex-col items-center gap-1">
+                <HexBadge
+                  fill={TEAM_COLORS[team].fill}
+                  label={String(state.scores[team])}
+                  className="size-16 drop-shadow-md sm:size-20"
+                />
+                <span className="text-sm font-bold text-amber-200">{TEAM_LABELS[team]}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Timer */}
+          {remaining !== null ? (
+            <div className="rounded-2xl bg-purple-900/60 p-4 text-center">
+              <p className="flex items-center justify-center gap-2 text-sm font-bold text-purple-200">
+                <Hourglass className="size-4" aria-hidden="true" />
+                الوقت المتبقي
+              </p>
+              <p
+                className={`text-6xl font-black tabular-nums ${remaining <= 5 ? 'animate-pulse text-red-400' : 'text-amber-200'}`}
+              >
+                {remaining}
+              </p>
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-purple-950">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${remaining <= 5 ? 'bg-red-400' : 'bg-amber-300'}`}
+                  style={{ width: `${timerRatio * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-purple-900/60 p-4 text-center text-lg font-bold text-purple-200">
+              {state.phase === 'open'
+                ? 'الأزرار مفتوحة — استعداداً للضغط!'
+                : 'لا وقت شغال حالياً'}
+            </div>
+          )}
+
+          {/* Question */}
+          {state.question ? (
+            <div className="rounded-2xl bg-white p-4 text-purple-900 shadow-inner">
+              <p className="flex items-center gap-2 text-sm font-extrabold text-purple-500">
+                <Lightbulb className="size-4" aria-hidden="true" />
+                السؤال — حرف {state.question.letter}
+              </p>
+              <p className="mt-1 text-xl font-extrabold leading-snug">{state.question.q}</p>
+              {state.question.a && state.phase === 'round_end' ? (
+                <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-lg font-black text-emerald-700">
+                  الجواب: {state.question.a}
+                </p>
+              ) : (
+                <p className="mt-2 flex items-center gap-1.5 text-sm font-bold text-purple-300">
+                  <Users className="size-4" aria-hidden="true" />
+                  الجواب عند المقدم فقط
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-purple-900/60 p-4 text-center text-purple-200">
+              <p className="text-sm font-bold">
+                {state.phase === 'choosing'
+                  ? 'الفريق يختار خلية حرف الآن...'
+                  : 'تظهر الأسئلة هنا بعد اختيار الحرف'}
+              </p>
+            </div>
+          )}
+
+          {/* Turn indicator */}
+          <div className="flex items-center justify-center gap-2 rounded-2xl bg-purple-900/60 p-3">
+            {(['A', 'B'] as LettersTeam[]).map(team => (
+              <span
+                key={team}
+                className={`rounded-full border-2 px-3 py-1.5 text-sm font-extrabold transition-colors ${
+                  state.activeTeam === team
+                    ? 'border-amber-300 bg-amber-300 text-purple-900'
+                    : 'border-purple-600 text-purple-300'
+                }`}
+              >
+                {TEAM_LABELS[team]} {state.scores[team]}
+              </span>
+            ))}
+          </div>
+        </aside>
+      </main>
+    </div>
+  )
+}

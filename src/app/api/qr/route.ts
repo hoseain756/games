@@ -3,11 +3,24 @@ import QRCode from 'qrcode'
 
 export const runtime = 'nodejs'
 
-/** GET /api/qr?text=<url> -> PNG data of the QR code. */
+/**
+ * GET /api/qr?text=<url-or-relative-path> -> PNG data of the QR code.
+ * Relative paths (starting with "/") are resolved against the incoming
+ * request host so the encoded URL is absolute and reachable by phones.
+ */
 export async function GET(request: NextRequest) {
-  const text = request.nextUrl.searchParams.get('text') ?? ''
-  if (!text || text.length > 512) {
+  const raw = request.nextUrl.searchParams.get('text') ?? ''
+  if (!raw || raw.length > 512) {
     return new Response('Bad request', { status: 400 })
+  }
+
+  let text = raw
+  if (raw.startsWith('/')) {
+    const host = request.headers.get('host')
+    if (host) {
+      const proto = request.headers.get('x-forwarded-proto') ?? 'http'
+      text = `${proto}://${host}${raw}`
+    }
   }
 
   try {
