@@ -56,27 +56,27 @@ function RoleChooser() {
       style={{ fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif' }}
     >
       <div className="text-center">
-        <h1 className="text-[clamp(1.9rem,6vw,3rem)] font-black leading-[1.15] tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.35)]">
+        <h1 className="text-4xl font-black tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.35)]">
           <span className="whitespace-nowrap">
             <span className="text-red-500">حروف</span> <span className="text-amber-500">مع حسين</span>
           </span>
         </h1>
-        <p className="mt-2 text-sm font-bold text-purple-700 sm:text-base">فريقان، خلايا حروف، وأسرع زر يجيب!</p>
+        <p className="mt-2 font-bold text-purple-700">فريقان، خلايا حروف، وأسرع زر يجيب!</p>
       </div>
       <div className="grid w-full max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
         {roles.map(item => (
           <a
             key={item.role}
             href={`/?game=huruf&role=${item.role}`}
-            className={`${item.classes} flex flex-col items-center gap-1 rounded-3xl p-[clamp(0.9rem,3vw,1.4rem)] text-center text-white shadow-lg transition-transform hover:scale-[1.03] active:scale-95`}
+            className={`${item.classes} flex flex-col items-center gap-1 rounded-3xl p-5 text-center text-white shadow-lg transition-transform hover:scale-[1.03] active:scale-95`}
           >
-            <item.icon className="size-[clamp(1.6rem,5vw,2.1rem)]" aria-hidden="true" />
-            <span className="text-[clamp(1.05rem,3.4vw,1.35rem)] font-black">{item.label}</span>
-            <span className="text-[clamp(0.68rem,2.4vw,0.85rem)] font-bold opacity-90">{item.hint}</span>
+            <item.icon className="size-8" aria-hidden="true" />
+            <span className="text-lg font-black">{item.label}</span>
+            <span className="text-xs font-bold opacity-90">{item.hint}</span>
           </a>
         ))}
       </div>
-      <p className="flex items-center gap-1.5 text-[clamp(0.68rem,2.4vw,0.85rem)] font-bold text-purple-400">
+      <p className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
         <HelpCircle className="size-4 shrink-0" aria-hidden="true" />
         كل شاشة لها رمز QR خاص يظهر عند المقدم
       </p>
@@ -93,7 +93,7 @@ function LettersScreen({ role }: { role: LettersRole }) {
         className="flex min-h-screen items-center justify-center bg-[#fdf3e7] text-purple-700"
         style={{ fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif' }}
       >
-        <p className="animate-pulse text-lg font-extrabold sm:text-xl">
+        <p className="animate-pulse text-xl font-extrabold">
           {connected ? `جاري تحميل ${ROLE_LABELS[role]}...` : 'جاري الاتصال بالخادم...'}
         </p>
       </div>

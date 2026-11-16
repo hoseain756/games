@@ -39,13 +39,13 @@ function TimerPill({ remaining }: { remaining: number | null }) {
   if (remaining === null) return null
   return (
     <span
-      className={`flex items-center gap-1.5 rounded-full px-[clamp(0.7rem,2.5vw,1.1rem)] py-1.5 text-fluid-md font-black tabular-nums shadow ${
+      className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-2xl font-black tabular-nums shadow ${
         remaining <= 5 ? 'animate-pulse bg-red-600 text-white' : 'bg-purple-800 text-amber-200'
       }`}
       role="timer"
       aria-label={`الوقت المتبقي ${remaining} ثانية`}
     >
-      <Hourglass className="size-[clamp(0.95rem,1rem+1vw,1.35rem)]" aria-hidden="true" />
+      <Hourglass className="size-5" aria-hidden="true" />
       {remaining}
     </span>
   )
@@ -173,19 +173,19 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
       style={{ fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif' }}
     >
       {/* Header */}
-      <header className="flex items-center justify-between gap-2 px-[clamp(0.75rem,3vw,1.25rem)] pt-[clamp(0.75rem,3vw,1.25rem)]">
+      <header className="flex items-center justify-between gap-2 px-4 pt-4">
         <div
-          className={`flex items-center gap-2 rounded-full border-2 px-[clamp(0.6rem,2.2vw,1rem)] py-1.5 text-fluid-xs font-extrabold ${color.chip}`}
+          className={`flex items-center gap-2 rounded-full border-2 px-3 py-1.5 font-extrabold ${color.chip}`}
         >
           <HexBadge
             fill={color.fill}
             label={String(state.scores[team])}
-            className="size-[clamp(1.75rem,2rem+1.5vw,2.5rem)]"
+            className="size-8"
             fontSize={40}
           />
           <span>{TEAM_LABELS[team]}</span>
         </div>
-        <span className="rounded-full bg-purple-800 px-[clamp(0.6rem,2.2vw,1rem)] py-1.5 text-fluid-xs font-extrabold text-amber-200">
+        <span className="rounded-full bg-purple-800 px-3 py-1.5 text-sm font-extrabold text-amber-200">
           حروف مع حسين
         </span>
       </header>
@@ -193,7 +193,7 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
       {/* Team mission on the connection board */}
       <div className="mt-2 flex justify-center px-4">
         <p
-          className={`flex w-fit max-w-full items-center gap-1.5 rounded-full border-2 px-3 py-1 text-center text-fluid-xs font-extrabold ${color.chip}`}
+          className={`flex w-fit items-center gap-1.5 rounded-full border-2 px-3 py-1 text-center text-xs font-extrabold ${color.chip}`}
           role="note"
         >
           {team === 'A' ? (
@@ -205,10 +205,10 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
         </p>
       </div>
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-[clamp(0.85rem,3vw,1.25rem)] pb-44 pt-3">
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 pb-44 pt-3">
         {/* Status + timer */}
         <section className="flex items-center justify-between gap-2">
-          <p className="text-fluid-sm font-extrabold leading-snug" role="status">
+          <p className="text-base font-extrabold leading-snug" role="status">
             {statusText}
           </p>
           <TimerPill remaining={remaining} />
@@ -246,9 +246,9 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
                 />
               )}
             </div>
-            <p className="text-fluid-md font-extrabold leading-relaxed">{state.question.q}</p>
+            <p className="text-2xl font-extrabold leading-relaxed">{state.question.q}</p>
             {state.phase === 'round_end' && state.question.a ? (
-              <p className="mt-3 rounded-xl bg-emerald-100 px-3 py-2 text-fluid-sm font-black text-emerald-700">
+              <p className="mt-3 rounded-xl bg-emerald-100 px-3 py-2 text-lg font-black text-emerald-700">
                 الجواب: {state.question.a}
               </p>
             ) : null}
@@ -262,15 +262,15 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
               state.result.outcome === 'correct' ? 'border-emerald-300 bg-emerald-50' : 'border-purple-200 bg-white'
             }`}
           >
-            <p className="text-fluid-sm font-black">
+            <p className="text-lg font-black">
               {state.result.outcome === 'correct'
                 ? `${TEAM_LABELS[state.result.team ?? 'A']} أجاب صح — +1!`
                 : 'لا أحد أجاب صح هذه الجولة'}
             </p>
             {state.result.answer && (
-              <p className="mt-1 text-fluid-xs font-bold text-purple-500">الجواب: {state.result.answer}</p>
+              <p className="mt-1 text-base font-bold text-purple-500">الجواب: {state.result.answer}</p>
             )}
-            <p className="mt-2 text-fluid-xs font-bold text-purple-400">بانتظار المقدم لفتح الجولة التالية</p>
+            <p className="mt-2 text-sm font-bold text-purple-400">بانتظار المقدم لفتح الجولة التالية</p>
           </section>
         )}
 
@@ -287,18 +287,18 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
               className={`mx-auto size-12 ${state.gameWinner === team ? 'text-amber-500' : 'text-purple-300'}`}
               aria-hidden="true"
             />
-            <p className="mt-2 text-fluid-md font-black">
+            <p className="mt-2 text-xl font-black">
               {state.gameWinner === team ? 'فزتم باللعبة!' : `${TEAM_LABELS[state.gameWinner ?? 'A']} فاز باللعبة`}
             </p>
-            <p className="mt-1 text-fluid-xs font-bold text-purple-500">
+            <p className="mt-1 text-sm font-bold text-purple-500">
               {state.gameWinner === team ? 'وصّلتم شريط فريقكم بالخلايا' : 'وصّل شريطه قبلكم — حظاً أوفر المرة القادمة'}
             </p>
             {state.result?.answer && (
-              <p className="mt-2 rounded-xl bg-purple-50 px-3 py-2 text-fluid-xs font-extrabold text-purple-700">
+              <p className="mt-2 rounded-xl bg-purple-50 px-3 py-2 text-sm font-extrabold text-purple-700">
                 آخر جواب: {state.result.answer}
               </p>
             )}
-            <p className="mt-2 text-fluid-xs font-bold text-purple-400">المقدم يفتح لعبة جديدة</p>
+            <p className="mt-2 text-sm font-bold text-purple-400">المقدم يفتح لعبة جديدة</p>
           </section>
         )}
       </main>
@@ -312,9 +312,9 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
             type="button"
             disabled={!button.enabled}
             onClick={button.action}
-            className={`flex min-h-28 w-full items-center justify-center gap-3 rounded-[2.5rem] border-4 px-4 text-center text-fluid-lg font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:active:scale-100 sm:min-h-36 ${button.classes}`}
+            className={`flex h-32 w-full items-center justify-center gap-3 rounded-[2.5rem] border-4 text-2xl font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:active:scale-100 sm:h-36 ${button.classes}`}
           >
-            <ButtonIcon className="size-[clamp(1.6rem,1.2rem+1.6vw,2.6rem)] shrink-0" aria-hidden="true" />
+            <ButtonIcon className="size-10 shrink-0" aria-hidden="true" />
             {button.label}
           </button>
         </div>

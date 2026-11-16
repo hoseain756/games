@@ -68,9 +68,9 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
       }}
     >
       {/* Top bar */}
-      <header className="flex items-center justify-between gap-fluid px-fluid pt-[clamp(0.5rem,1.6vmin,1.25rem)]">
+      <header className="flex flex-wrap items-center justify-between gap-[clamp(0.4rem,1.5vmin,0.85rem)] px-fluid pt-[clamp(0.5rem,1.6vmin,1.25rem)]">
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-[clamp(0.3rem,1vmin,0.6rem)] rounded-full bg-purple-800 px-fluid py-fluid-sm text-fluid-sm font-extrabold text-white shadow-lg">
+          <span className="flex items-center gap-[clamp(0.3rem,1vmin,0.6rem)] whitespace-nowrap rounded-full bg-purple-800 px-fluid py-fluid-sm text-fluid-sm font-extrabold text-white shadow-lg">
             <MonitorPlay className="size-[clamp(0.95rem,2.4vmin,1.4rem)]" aria-hidden="true" />
             شاشة العرض
           </span>

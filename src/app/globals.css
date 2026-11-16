@@ -201,10 +201,10 @@
    big TV and shrinks on short/wide phone screens — no wrapping, no crowding.
    Unlayered on purpose: these always win over static text-* utilities. ----- */
 .text-fluid-2xs {
-  font-size: clamp(0.6rem, 0.3rem + 1.1vmin, 0.78rem);
+  font-size: clamp(0.68rem, 0.35rem + 1.3vmin, 0.82rem);
 }
 .text-fluid-xs {
-  font-size: clamp(0.7rem, 0.4rem + 1.5vmin, 0.95rem);
+  font-size: clamp(0.78rem, 0.45rem + 1.5vmin, 0.95rem);
 }
 .text-fluid-sm {
   font-size: clamp(0.8rem, 0.5rem + 2vmin, 1.15rem);
