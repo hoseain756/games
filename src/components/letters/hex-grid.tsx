@@ -42,12 +42,14 @@ const cellCx = (row: number, col: number) =>
   PAD + W / 2 + col * W + (row % 2 === 1 ? W / 2 : 0)
 const cellCy = (row: number) => PAD + R + row * ROW_H
 
-// Board extremes (odd rows protrude right by half a cell).
+// Cluster extremes (odd rows protrude right by half a cell).
 const MAX_X = PAD + (COLS + 0.5) * W
 const MAX_Y = PAD + R + (ROWS - 1) * ROW_H + R
 
-const VIEW_W = MAX_X
-const VIEW_H = MAX_Y
+// The big box adds the SAME uniform padding after the cluster extremes, so the
+// cells sit exactly in the middle of the box on every side.
+const VIEW_W = MAX_X + PAD
+const VIEW_H = MAX_Y + PAD
 
 // Green band geometry: straight edge depth + diagonal corner runs. The bands
 // run slightly deeper than PAD so the top/bottom rows nestle into the green,
