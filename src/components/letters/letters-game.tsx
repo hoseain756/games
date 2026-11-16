@@ -32,14 +32,14 @@ function RoleChooser() {
       label: 'الفريق الأول',
       hint: 'شاشة الفريق الأول مع الزر الضخم',
       icon: Trophy,
-      classes: 'bg-gradient-to-b from-amber-400 to-amber-500 text-amber-950',
+      classes: 'bg-gradient-to-b from-green-400 to-green-500 text-white',
     },
     {
       role: 'teamB',
       label: 'الفريق الثاني',
       hint: 'شاشة الفريق الثاني مع الزر الضخم',
       icon: Trophy,
-      classes: 'bg-gradient-to-b from-red-400 to-red-500',
+      classes: 'bg-gradient-to-b from-orange-400 to-orange-500 text-orange-950',
     },
     {
       role: 'display',

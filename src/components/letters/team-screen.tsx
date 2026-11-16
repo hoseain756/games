@@ -93,7 +93,7 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
           label: 'عرفنا الجواب!',
           icon: CheckCircle2,
           enabled: true,
-          classes: `${color.fill === '#fbbf24' ? 'bg-gradient-to-b from-amber-400 to-amber-500 border-amber-600 shadow-[0_10px_0_#92400e]' : 'bg-gradient-to-b from-red-400 to-red-500 border-red-600 shadow-[0_10px_0_#991b1b]'} animate-pulse`,
+          classes: `${team === 'A' ? 'bg-gradient-to-b from-green-400 to-green-500 border-green-600 shadow-[0_10px_0_#276b12]' : 'bg-gradient-to-b from-orange-400 to-orange-500 border-orange-600 shadow-[0_10px_0_#c2410c]'} animate-pulse`,
           action: onReady,
         }
   } else if (state.phase === 'buzz_answer' && isMyTurn) {

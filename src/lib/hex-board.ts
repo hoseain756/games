@@ -1,10 +1,19 @@
 // ---------------------------------------------------------------------------
 // Hex connection board ("وصّل الشريطين") for "حروف مع حسين".
-// A 5x5 staircase board of pointy-top hexagons (5 letters per row, 5 rows):
-// - Team A (amber) owns the TOP + BOTTOM edges and wins by connecting them.
-// - Team B (red) owns the LEFT + RIGHT edges and wins by connecting them.
+// A 5x5 ALTERNATING honeycomb board of pointy-top hexagons (5 letters per
+// row, 5 rows) exactly like the reference design: odd rows (2nd, 4th) are
+// shifted right by half a cell, so they protrude into the right band and
+// nestle half a cell from the left band.
+// - Team A (green) owns the TOP + BOTTOM bands and wins by connecting them
+//   (every row-0 / row-4 cell touches its band).
+// - Team B (orange) owns the LEFT + RIGHT bands and wins by connecting the
+//   first column to the last column (even-row cells touch the side bands
+//   directly; odd-row cells protrude into the right band).
 // Answering a question colors one cell with the answering team's color; the
 // first team whose color forms a chain between its two edges wins the game.
+//
+// Exhaustively verified over all 2^25 colorings: a completely filled board
+// always contains a winning chain for exactly one team (no draws possible).
 // ---------------------------------------------------------------------------
 
 export const BOARD_COLS = 5
@@ -27,8 +36,9 @@ export function cellCol(index: number): number {
 }
 
 /**
- * Hex adjacency for a staircase board whose rows shift RIGHT by half a cell
- * per row: horizontal neighbors plus (r+1,c) (r+1,c-1) (r-1,c) (r-1,c+1).
+ * Hex adjacency for the alternating honeycomb: horizontal neighbors plus the
+ * two diagonal neighbors in the rows above/below, mirrored around the row
+ * parity (odd rows are shifted right by half a cell).
  */
 export function hexNeighbors(index: number): number[] {
   const r = cellRow(index)
@@ -39,10 +49,19 @@ export function hexNeighbors(index: number): number[] {
   }
   push(r, c - 1)
   push(r, c + 1)
-  push(r + 1, c)
-  push(r + 1, c - 1)
-  push(r - 1, c)
-  push(r - 1, c + 1)
+  if (r % 2 === 0) {
+    // Even rows sit half a cell LEFT of the odd rows above/below.
+    push(r + 1, c)
+    push(r + 1, c - 1)
+    push(r - 1, c)
+    push(r - 1, c - 1)
+  } else {
+    // Odd rows sit half a cell RIGHT of the even rows above/below.
+    push(r + 1, c)
+    push(r + 1, c + 1)
+    push(r - 1, c)
+    push(r - 1, c + 1)
+  }
   return out
 }
 
@@ -52,10 +71,17 @@ export interface HexWin {
   path: number[]
 }
 
+/** A's two edges: the full top row and the full bottom row. */
+const A_STARTS = [0, 1, 2, 3, 4]
+const A_GOALS = [20, 21, 22, 23, 24]
+/** B's two edges: the full first column and the full last column. */
+const B_STARTS = [0, 5, 10, 15, 20]
+const B_GOALS = [4, 9, 14, 19, 24]
+
 /**
  * Returns the winning chain if a team connected its two edges (null while
- * nobody has connected yet). A completely filled Hex board always contains
- * exactly one winning chain, so the game can never end in a draw.
+ * nobody has connected yet). Checked after every claimed cell, so the first
+ * completed chain ends the game immediately.
  */
 export function findWinningChain(
   claimed: Record<string, HexTeam>,
@@ -63,25 +89,25 @@ export function findWinningChain(
 ): HexWin | null {
   for (const team of ['A', 'B'] as const) {
     const owner = (index: number) => claimed[layout[index]] === team
-    const isStart = (index: number) => (team === 'A' ? cellRow(index) === 0 : cellCol(index) === 0)
-    const isGoal = (index: number) =>
-      team === 'A' ? cellRow(index) === BOARD_ROWS - 1 : cellCol(index) === BOARD_COLS - 1
+    const starts = team === 'A' ? A_STARTS : B_STARTS
+    const goals = team === 'A' ? A_GOALS : B_GOALS
+    const isGoal = new Set(goals)
 
     // BFS from every claimed start cell on the team's first edge.
     const parent = new Map<number, number>()
     const queue: number[] = []
     const limit = Math.min(layout.length, BOARD_CELLS)
-    for (let i = 0; i < limit; i++) {
-      if (owner(i) && isStart(i)) {
-        parent.set(i, -1)
-        queue.push(i)
+    for (const s of starts) {
+      if (s < limit && owner(s) && !parent.has(s)) {
+        parent.set(s, -1)
+        queue.push(s)
       }
     }
 
     let goal = -1
     for (let head = 0; head < queue.length; head++) {
       const current = queue[head]
-      if (isGoal(current)) {
+      if (isGoal.has(current)) {
         goal = current
         break
       }

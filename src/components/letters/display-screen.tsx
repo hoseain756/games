@@ -61,27 +61,26 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
 
   return (
     <div
-      className="flex min-h-screen flex-col text-white"
+      className="flex min-h-screen flex-col text-purple-950"
       style={{
         fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif',
-        background:
-          'linear-gradient(115deg, #f97316 0%, #f97316 52%, #fbbf24 52%, #fbbf24 80%, #ea580c 80%)',
+        background: 'linear-gradient(160deg, #fdf3e7 0%, #faebd3 55%, #f7e3c4 100%)',
       }}
     >
       {/* Top bar */}
       <header className="flex items-center justify-between gap-3 px-5 pt-4">
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-2 rounded-full bg-purple-800 px-4 py-2 text-lg font-extrabold shadow-lg">
+          <span className="flex items-center gap-2 rounded-full bg-purple-800 px-4 py-2 text-lg font-extrabold text-white shadow-lg">
             <MonitorPlay className="size-5" aria-hidden="true" />
             شاشة العرض
           </span>
-          <span className="hidden rounded-full bg-white/20 px-3 py-1.5 text-sm font-bold backdrop-blur sm:inline">
+          <span className="hidden rounded-full bg-purple-100 px-3 py-1.5 text-sm font-bold text-purple-800 sm:inline">
             الجولة {Math.max(state.roundNumber, 1)}
           </span>
         </div>
-        <h1 className="text-3xl font-black tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.9)] sm:text-4xl">
+        <h1 className="text-3xl font-black tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.25)] sm:text-4xl">
           <span className="text-red-500">حروف</span>{' '}
-          <span className="text-amber-200">مع حسين</span>
+          <span className="text-purple-800">مع حسين</span>
         </h1>
       </header>
 
@@ -208,14 +207,14 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
             ))}
           </div>
 
-          {/* Board legend: which bars belong to which team */}
+          {/* Board legend: which bands belong to which team */}
           <div className="space-y-1.5 rounded-2xl bg-purple-900/60 p-3 text-xs font-bold text-purple-100">
             <p className="flex items-center gap-2">
-              <span className="inline-block size-3 shrink-0 rounded-sm bg-amber-400" aria-hidden="true" />
+              <span className="inline-block size-3 shrink-0 rounded-sm bg-green-500" aria-hidden="true" />
               الفريق الأول: {TEAM_MISSIONS.A}
             </p>
             <p className="flex items-center gap-2">
-              <span className="inline-block size-3 shrink-0 rounded-sm bg-red-400" aria-hidden="true" />
+              <span className="inline-block size-3 shrink-0 rounded-sm bg-orange-400" aria-hidden="true" />
               الفريق الثاني: {TEAM_MISSIONS.B}
             </p>
           </div>

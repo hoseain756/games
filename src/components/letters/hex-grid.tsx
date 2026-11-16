@@ -4,20 +4,24 @@ import { memo } from 'react'
 import type { LettersTeam } from '@/lib/letters-types'
 
 // ---------------------------------------------------------------------------
-// Hex CONNECTION board — 5 rows x 5 letters, staircase layout (classic Hex).
-// Amber bars hug the TOP + BOTTOM edges (Team A must connect them), red bars
-// hug the LEFT + RIGHT edges (Team B must connect them). Claimed cells take
-// the answering team's color; the winning chain glows on victory.
+// Hex CONNECTION board — 5 rows x 5 letters, ALTERNATING honeycomb (odd rows
+// shifted right by half a cell), matching the reference design:
+// a full-bleed colored frame where the TOP + BOTTOM bands are the Team A
+// green and the LEFT + RIGHT sides are the Team B orange, with diagonal
+// corner cuts. Claimed cells take the answering team's color; the winning
+// chain glows on victory.
 // ---------------------------------------------------------------------------
 
 const PURPLE_BORDER = '#7c3aad'
 const PURPLE_LETTER = '#6d28d9'
-const TEAM_FILL: Record<LettersTeam, string> = { A: '#fbbf24', B: '#f87171' }
-const TEAM_DEEP: Record<LettersTeam, string> = { A: '#b45309', B: '#b91c1c' }
-const A_BAR = '#f59e0b'
-const A_BAR_DEEP = '#92400e'
-const B_BAR = '#ef4444'
-const B_BAR_DEEP = '#991b1b'
+/** Exact colors sampled from the reference image. */
+const GREEN = '#3bb316' // Team A — top + bottom bands
+const GREEN_DEEP = '#276b12'
+const ORANGE = '#ff7836' // Team B — left + right bands
+const ORANGE_DEEP = '#c2410c'
+const TEAM_FILL: Record<LettersTeam, string> = { A: GREEN, B: ORANGE }
+const TEAM_DEEP: Record<LettersTeam, string> = { A: GREEN_DEEP, B: ORANGE_DEEP }
+const ACTIVE_RING = '#fde047'
 
 /** Isolated forms that read better on the board. */
 const LETTER_DISPLAY: Record<string, string> = { ه: 'هـ' }
@@ -26,28 +30,27 @@ const S = 100 // hex radius (center -> vertex)
 const W = Math.sqrt(3) * S // hex width
 const GAP = 1.04 // spacing multiplier -> small gaps between cells
 const SX = W * GAP
-const SY = 1.5 * S * GAP
+const SY = 1.5 * S * GAP * 1.1 // slight vertical stretch, like the reference
 const COLS = 5
-const PAD = 16
-const BAR_T = 20 // edge bar thickness
-const BAR_OFF = 12 // gap between the bars and the cells
+const ROWS = 5
+const PAD_X = 140 // side margin = the visible orange band width
+const PAD_Y = 36 // top/bottom margin above the first row of cells
 
-// Rows shift RIGHT by half a cell per row (staircase).
-const cellCx = (row: number, col: number) => PAD + W / 2 + col * SX + row * (SX / 2)
-const cellCy = (row: number) => PAD + S + row * SY
+// Odd rows are shifted RIGHT by half a cell (staggered honeycomb).
+const cellCx = (row: number, col: number) =>
+  PAD_X + W / 2 + col * SX + (row % 2 === 1 ? SX / 2 : 0)
+const cellCy = (row: number) => PAD_Y + S + row * SY
 
-// Board extremes.
-const TOP_LEFT = PAD
-const TOP_RIGHT = PAD + (COLS - 1) * SX + W
-const BOT_LEFT = PAD + ((COLS - 1) * SX) / 2
-const BOT_RIGHT = BOT_LEFT + (COLS - 1) * SX + W
-const MIN_X = TOP_LEFT
-const MAX_X = BOT_RIGHT
-const MIN_Y = PAD
-const MAX_Y = PAD + 2 * S + (COLS - 1) * SY
+// Board extremes (odd rows protrude right by half a cell).
+const MAX_X = PAD_X + W + (COLS - 1) * SX + SX / 2
+const MAX_Y = PAD_Y + 2 * S + (ROWS - 1) * SY
 
-const VIEW_W = MAX_X + BAR_OFF + BAR_T + PAD
-const VIEW_H = MAX_Y + BAR_OFF + BAR_T + PAD
+const VIEW_W = MAX_X + PAD_X
+const VIEW_H = MAX_Y + PAD_Y
+
+// Green band geometry: straight edge depth + diagonal corner runs.
+const BAND_H = 96
+const DIAG = 130
 
 function hexPoints(cx: number, cy: number, r: number): string {
   const points: string[] = []
@@ -96,46 +99,15 @@ function HexGridImpl({
       role="group"
       aria-label="لوحة الحروف السداسية — صِل شريط فريقك"
     >
-      {/* Team edge bars: A = top + bottom, B = left + right */}
-      <rect
-        x={TOP_LEFT}
-        y={MIN_Y - BAR_OFF - BAR_T}
-        width={TOP_RIGHT - TOP_LEFT}
-        height={BAR_T}
-        rx={BAR_T / 2}
-        fill={A_BAR}
-        stroke={A_BAR_DEEP}
-        strokeWidth={3}
+      {/* Full-bleed frame: orange base (Team B sides) + green top/bottom bands (Team A) */}
+      <rect x={0} y={0} width={VIEW_W} height={VIEW_H} fill={ORANGE} />
+      <polygon
+        points={`0,0 ${VIEW_W.toFixed(0)},0 ${(VIEW_W - DIAG).toFixed(0)},${BAND_H} ${DIAG},${BAND_H}`}
+        fill={GREEN}
       />
-      <rect
-        x={BOT_LEFT}
-        y={MAX_Y + BAR_OFF}
-        width={BOT_RIGHT - BOT_LEFT}
-        height={BAR_T}
-        rx={BAR_T / 2}
-        fill={A_BAR}
-        stroke={A_BAR_DEEP}
-        strokeWidth={3}
-      />
-      <rect
-        x={MIN_X - BAR_OFF - BAR_T}
-        y={MIN_Y}
-        width={BAR_T}
-        height={MAX_Y - MIN_Y}
-        rx={BAR_T / 2}
-        fill={B_BAR}
-        stroke={B_BAR_DEEP}
-        strokeWidth={3}
-      />
-      <rect
-        x={MAX_X + BAR_OFF}
-        y={MIN_Y}
-        width={BAR_T}
-        height={MAX_Y - MIN_Y}
-        rx={BAR_T / 2}
-        fill={B_BAR}
-        stroke={B_BAR_DEEP}
-        strokeWidth={3}
+      <polygon
+        points={`${DIAG},${(VIEW_H - BAND_H).toFixed(0)} ${(VIEW_W - DIAG).toFixed(0)},${(VIEW_H - BAND_H).toFixed(0)} ${VIEW_W.toFixed(0)},${VIEW_H.toFixed(0)} 0,${VIEW_H.toFixed(0)}`}
+        fill={GREEN}
       />
 
       {layout.map((letter, index) => {
@@ -149,20 +121,28 @@ function HexGridImpl({
         const inWin = winPath?.has(letter) === true && winTeam
 
         const fill = owner ? TEAM_FILL[owner] : '#ffffff'
-        const stroke = isActive ? '#f59e0b' : PURPLE_BORDER
-        const strokeWidth = isActive ? 16 : 9
+        const highlight = isActive && !inWin
+        const stroke = highlight ? ACTIVE_RING : PURPLE_BORDER
+        const strokeWidth = highlight ? 16 : 9
 
         return (
           <g
             key={`${letter}-${index}`}
             onClick={canPick ? () => onPick?.(letter) : undefined}
-            className={[
-              canPick ? 'cursor-pointer transition-opacity hover:opacity-75' : '',
-              isActive || inWin ? 'animate-pulse' : '',
-            ].join(' ')}
+            className={canPick ? 'cursor-pointer transition-opacity hover:opacity-75' : ''}
             role={canPick ? 'button' : undefined}
             aria-label={canPick ? `اختر حرف ${letter}` : undefined}
           >
+            {isActive && !inWin && (
+              <polygon
+                points={hexPoints(x, y, S)}
+                fill="none"
+                stroke={ACTIVE_RING}
+                strokeWidth={30}
+                strokeLinejoin="round"
+                className="animate-pulse"
+              />
+            )}
             {inWin && winTeam && (
               <polygon
                 points={hexPoints(x, y, S)}
@@ -242,7 +222,7 @@ export function HexBadge({
         dominantBaseline="central"
         fontSize={fontSize}
         fontWeight={800}
-        fill={PURPLE_LETTER}
+        fill="#ffffff"
       >
         {label}
       </text>

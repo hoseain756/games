@@ -139,10 +139,10 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
 
       {/* Presence chips */}
       <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-        <span className={`rounded-full border px-2.5 py-1 ${state.online.A ? 'border-amber-300 bg-amber-100 text-amber-800' : 'bg-muted text-muted-foreground'}`}>
+        <span className={`rounded-full border px-2.5 py-1 ${state.online.A ? 'border-green-300 bg-green-100 text-green-800' : 'bg-muted text-muted-foreground'}`}>
           الفريق الأول {state.online.A ? 'متصل' : 'غير متصل'}
         </span>
-        <span className={`rounded-full border px-2.5 py-1 ${state.online.B ? 'border-red-300 bg-red-100 text-red-700' : 'bg-muted text-muted-foreground'}`}>
+        <span className={`rounded-full border px-2.5 py-1 ${state.online.B ? 'border-orange-300 bg-orange-100 text-orange-700' : 'bg-muted text-muted-foreground'}`}>
           الفريق الثاني {state.online.B ? 'متصل' : 'غير متصل'}
         </span>
         <span className={`rounded-full border px-2.5 py-1 ${state.online.display ? 'border-purple-300 bg-purple-100 text-purple-700' : 'bg-muted text-muted-foreground'}`}>
@@ -158,12 +158,12 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
       {/* Mission legend */}
       {state.phase !== 'lobby' && (
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-          <span className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-amber-800">
-            <span className="inline-block size-3 rounded-sm bg-amber-400" aria-hidden="true" />
+          <span className="flex items-center gap-1.5 rounded-full border border-green-300 bg-green-100 px-2.5 py-1 text-green-800">
+            <span className="inline-block size-3 rounded-sm bg-green-500" aria-hidden="true" />
             الفريق الأول: {TEAM_MISSIONS.A}
           </span>
-          <span className="flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 px-2.5 py-1 text-red-700">
-            <span className="inline-block size-3 rounded-sm bg-red-400" aria-hidden="true" />
+          <span className="flex items-center gap-1.5 rounded-full border border-orange-300 bg-orange-100 px-2.5 py-1 text-orange-700">
+            <span className="inline-block size-3 rounded-sm bg-orange-400" aria-hidden="true" />
             الفريق الثاني: {TEAM_MISSIONS.B}
           </span>
         </div>
@@ -271,7 +271,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     size="lg"
-                    className="h-16 rounded-2xl bg-gradient-to-b from-amber-400 to-amber-500 text-lg font-black text-amber-950 shadow-[0_6px_0_#92400e] hover:from-amber-300"
+                    className="h-16 rounded-2xl bg-gradient-to-b from-green-500 to-green-600 text-lg font-black text-white shadow-[0_6px_0_#276b12] hover:from-green-400"
                     onClick={() => act('letters:open_turn', { team: 'A' })}
                   >
                     <Play className="size-5" aria-hidden="true" />
@@ -279,7 +279,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                   </Button>
                   <Button
                     size="lg"
-                    className="h-16 rounded-2xl bg-gradient-to-b from-red-400 to-red-500 text-lg font-black text-white shadow-[0_6px_0_#991b1b] hover:from-red-300"
+                    className="h-16 rounded-2xl bg-gradient-to-b from-orange-400 to-orange-500 text-lg font-black text-orange-950 shadow-[0_6px_0_#c2410c] hover:from-orange-300"
                     onClick={() => act('letters:open_turn', { team: 'B' })}
                   >
                     <Play className="size-5" aria-hidden="true" />

@@ -90,22 +90,22 @@ export const TEAM_LABELS: Record<LettersTeam, string> = {
   B: 'الفريق الثاني',
 }
 
-/** Colors per team (matches the hexagon design: yellow vs salmon). */
+/** Colors per team (matches the reference board: green vs orange). */
 export const TEAM_COLORS: Record<
   LettersTeam,
   { fill: string; deep: string; text: string; chip: string }
 > = {
   A: {
-    fill: '#fbbf24',
-    deep: '#b45309',
-    text: 'text-amber-600',
-    chip: 'bg-amber-100 text-amber-800 border-amber-300',
+    fill: '#3bb316',
+    deep: '#276b12',
+    text: 'text-green-600',
+    chip: 'bg-green-100 text-green-800 border-green-300',
   },
   B: {
-    fill: '#f87171',
-    deep: '#b91c1c',
-    text: 'text-red-500',
-    chip: 'bg-red-100 text-red-700 border-red-300',
+    fill: '#ff7836',
+    deep: '#c2410c',
+    text: 'text-orange-600',
+    chip: 'bg-orange-100 text-orange-800 border-orange-300',
   },
 }
 
@@ -123,6 +123,6 @@ export const CHOOSE_TIME_OPTIONS = [30, 20, 15, 10] as const
 
 /** Mission of each team on the 5x5 connection board. */
 export const TEAM_MISSIONS: Record<LettersTeam, string> = {
-  A: 'توصيل الشريطين الأصفرين — الأعلى بالأسفل',
-  B: 'توصيل الشريطين الأحمرين — اليمين باليسار',
+  A: 'توصيل الشريطين الأخضرين — الأعلى بالأسفل',
+  B: 'توصيل الشريطين البرتقاليين — اليمين باليسار',
 }
