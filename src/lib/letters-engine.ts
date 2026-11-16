@@ -329,7 +329,12 @@ export function startLettersEngine(port: number) {
 
   io.on('connection', socket => {
     const role = roleOf(socket)
+    console.log(`[letters-engine] socket connected: ${socket.id} (${role})`)
     socket.join(role)
+
+    socket.on('disconnect', reason => {
+      console.log(`[letters-engine] socket disconnected: ${socket.id} (${role}, ${reason})`)
+    })
 
     // Fresh state for the newcomer (and refreshed presence for everyone).
     broadcast()

@@ -77,6 +77,7 @@ function parseTurn(value: unknown): TurnState | null {
           name: currentPlayerRec.name as string,
           selfie: typeof currentPlayerRec.selfie === 'string' ? currentPlayerRec.selfie : '',
           connected: currentPlayerRec.connected !== false,
+          ready: currentPlayerRec.ready === true,
         }
       : null,
   }
@@ -375,6 +376,15 @@ export function PhotoGameRoot() {
     return () => window.clearTimeout(id)
   }, [socket, connected])
 
+  // Boot watchdog: if the socket never reaches the server, fail visibly
+  // after 12s instead of spinning forever (hides again if connection returns).
+  const [bootStuck, setBootStuck] = useState(false)
+  useEffect(() => {
+    if (booted || connected) return
+    const timer = window.setTimeout(() => setBootStuck(true), 12000)
+    return () => window.clearTimeout(timer)
+  }, [booted, connected])
+
   // ---- Re-attach after a temporary socket reconnection ---------------------
   useEffect(() => {
     if (!socket) return
@@ -577,7 +587,15 @@ export function PhotoGameRoot() {
       <AppHeader connected={connected} />
       <main className="mx-auto flex w-full max-w-xl flex-1 flex-col px-4 pb-6">
         {!booted ? (
-          <LoaderCard title="جاري الاتصال بالخادم..." />
+          bootStuck && !connected ? (
+            <ErrorState
+              message="ما قدرنا نوصل للخادم — تأكدوا من اتصال الجوال بالشبكة ثم جربوا مرة ثانية."
+              retryLabel="إعادة المحاولة"
+              onRetry={() => window.location.reload()}
+            />
+          ) : (
+            <LoaderCard title="جاري الاتصال بالخادم..." />
+          )
         ) : mode === 'host' ? (
           renderHost()
         ) : (

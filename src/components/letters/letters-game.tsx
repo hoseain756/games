@@ -1,6 +1,7 @@
 'use client'
 
-import { Trophy, MonitorPlay, Sparkles, HelpCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { HelpCircle, MonitorPlay, RefreshCw, Sparkles, TriangleAlert, Trophy } from 'lucide-react'
 import { useLettersSocket } from '@/hooks/use-letters-socket'
 import { HostConsole } from '@/components/letters/host-console'
 import { TeamScreen } from '@/components/letters/team-screen'
@@ -87,15 +88,55 @@ function RoleChooser() {
 function LettersScreen({ role }: { role: LettersRole }) {
   const { state, connected, remaining, act } = useLettersSocket(role)
 
+  // Watchdog: never leave a phone hanging on the spinner forever. After 12s
+  // without game state we surface a clear error + retry, while the socket
+  // keeps retrying in the background — if the server comes back the game
+  // replaces this card automatically (no reload needed). One-way latch: the
+  // render gate `stuck && !state` hides it again as soon as state arrives.
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    if (state) return
+    const timer = window.setTimeout(() => setStuck(true), 12000)
+    return () => window.clearTimeout(timer)
+  }, [state, connected])
+
   if (!state) {
     return (
       <div
-        className="flex min-h-screen items-center justify-center bg-[#fdf3e7] text-purple-700"
+        className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fdf3e7] p-6 text-center text-purple-700"
         style={{ fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif' }}
       >
-        <p className="animate-pulse text-xl font-extrabold">
-          {connected ? `جاري تحميل ${ROLE_LABELS[role]}...` : 'جاري الاتصال بالخادم...'}
-        </p>
+        {stuck ? (
+          <>
+            <span className="grid size-16 place-items-center rounded-full bg-amber-100 text-amber-600">
+              <TriangleAlert className="size-8" aria-hidden="true" />
+            </span>
+            <p className="text-xl font-black text-purple-800">
+              ما قدرنا نوصل للخادم
+            </p>
+            <p className="max-w-xs text-sm font-bold text-purple-500">
+              {connected
+                ? 'الاتصال تم لكن ما وصلتنا بيانات اللعبة — تأكدوا من الشبكة وجربوا مرة ثانية.'
+                : 'تأكدوا من اتصال الجوال بالشبكة، أو أن الخادم يعاد تشغيله الآن.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="flex h-12 items-center gap-2 rounded-2xl bg-purple-700 px-6 text-base font-black text-white shadow-[0_4px_0_#4c1d95] transition-transform active:scale-95"
+            >
+              <RefreshCw className="size-5" aria-hidden="true" />
+              إعادة المحاولة
+            </button>
+            <p className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
+              <span className="inline-block size-2 animate-pulse rounded-full bg-purple-400" aria-hidden="true" />
+              ما زلنا نحاول الاتصال تلقائياً...
+            </p>
+          </>
+        ) : (
+          <p className="animate-pulse text-xl font-extrabold">
+            {connected ? `جاري تحميل ${ROLE_LABELS[role]}...` : 'جاري الاتصال بالخادم...'}
+          </p>
+        )}
       </div>
     )
   }
