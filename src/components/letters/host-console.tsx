@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
+import { HurufLogo } from '@/components/letters/huruf-logo'
 import {
   ANSWER_TIME_OPTIONS,
   CHOOSE_TIME_OPTIONS,
@@ -218,9 +219,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
       {/* Session header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-purple-800 px-3 py-1.5 text-sm font-extrabold text-amber-200">
-            حروف مع حسين
-          </span>
+          <HurufLogo className="h-10 w-auto drop-shadow-[0_3px_0_rgba(124,58,173,0.18)]" />
           <span className="rounded-full border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground">
             الجولة {Math.max(state.roundNumber, 0)}
           </span>

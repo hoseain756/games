@@ -14,6 +14,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
+import { HurufLogo } from '@/components/letters/huruf-logo'
 import {
   ARABIC_LETTERS,
   TEAM_COLORS,
@@ -187,9 +188,7 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
           />
           <span>{TEAM_LABELS[team]}</span>
         </div>
-        <span className="rounded-full bg-purple-800 px-3 py-1.5 text-sm font-extrabold text-amber-200">
-          حروف مع حسين
-        </span>
+        <HurufLogo className="h-11 w-auto drop-shadow-[0_3px_0_rgba(124,58,173,0.18)]" />
       </header>
 
       {/* Team mission on the connection board */}

@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 import { AppFooter } from '@/components/game/app-footer'
+import { HurufLogo } from '@/components/letters/huruf-logo'
 
 // ---------------------------------------------------------------------------
 // Home menu: lists every game. The first game (selfie QR questions) and the
@@ -26,6 +27,8 @@ interface GameCard {
   badge: string
   classes: string
   chipClasses: string
+  /** Render the retro lettering logo instead of the plain text title. */
+  logo?: boolean
 }
 
 const GAMES: GameCard[] = [
@@ -50,6 +53,7 @@ const GAMES: GameCard[] = [
     badge: 'فريقان + زر ضخم',
     classes: 'from-purple-500 to-purple-800',
     chipClasses: 'bg-purple-100 text-purple-700 border-purple-200',
+    logo: true,
   },
 ]
 
@@ -91,7 +95,11 @@ export function AppHome() {
             >
               {game.badge}
             </span>
-            <h2 className="text-2xl font-black text-purple-950">{game.title}</h2>
+            {game.logo ? (
+              <HurufLogo className="mt-1 h-24 w-auto drop-shadow-[0_3px_0_rgba(124,58,173,0.18)]" />
+            ) : (
+              <h2 className="text-2xl font-black text-purple-950">{game.title}</h2>
+            )}
             <p className="mt-1 text-sm font-bold text-purple-500">{game.subtitle}</p>
             <p className="mt-3 flex-1 text-sm font-bold leading-relaxed text-purple-900/75">
               {game.description}

@@ -2,6 +2,7 @@
 
 import { Hourglass, Lightbulb, MonitorPlay, Trophy, Users } from 'lucide-react'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
+import { HurufLogo } from '@/components/letters/huruf-logo'
 import {
   DIFFICULTY_STYLES,
   TEAM_COLORS,
@@ -79,11 +80,8 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
             الجولة {Math.max(state.roundNumber, 1)}
           </span>
         </div>
-        <h1 className="text-fluid-2xl font-black leading-[1.15] tracking-tight drop-shadow-[3px_3px_0_rgba(124,58,173,0.25)]">
-          <span className="whitespace-nowrap">
-            <span className="text-red-500">حروف</span>{' '}
-            <span className="text-purple-800">مع حسين</span>
-          </span>
+        <h1 className="leading-none">
+          <HurufLogo className="h-[clamp(3.75rem,11vmin,6.5rem)] w-auto drop-shadow-[0_4px_0_rgba(124,58,173,0.18)]" />
         </h1>
       </header>
 
