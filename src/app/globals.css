@@ -177,23 +177,54 @@
   box-shadow: var(--shadow-brand);
 }
 
+/* Slim custom scrollbar. Webkit rules come first WITHOUT the standard
+   scrollbar-width/scrollbar-color on the same element — since Chrome 121 the
+   standard properties take precedence and make Chrome fall back to its native
+   (chunky, arrow-buttoned) scrollbar, which looked broken on the TV screen. */
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: rgba(124, 58, 173, 0.45) transparent;
 }
 
-.scroll-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@supports selector(::-webkit-scrollbar) {
+  .scroll-thin {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+
+  .scroll-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: rgba(124, 58, 173, 0.4);
+    border-radius: 99px;
+  }
+
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-thin::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
-.scroll-thin::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 99px;
+/* Scrollable but with the scrollbar completely hidden (wheel/touch still
+   works) — for fixed info panels like the TV sidebar where a native
+   scrollbar would ruin the layout. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.scroll-thin::-webkit-scrollbar-track {
-  background: transparent;
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* --- Fluid text scale (حروف مع حسين) -------------------------------------

@@ -69,20 +69,20 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
         background: 'linear-gradient(160deg, #fdf3e7 0%, #faebd3 55%, #f7e3c4 100%)',
       }}
     >
-      {/* Top bar */}
+      {/* Top bar — logo anchors the RTL start (right), status pills at the end */}
       <header className="flex flex-wrap items-center justify-between gap-[clamp(0.4rem,1.5vmin,0.85rem)] px-fluid pt-[clamp(0.5rem,1.6vmin,1.25rem)]">
+        <h1 className="leading-none">
+          <HurufLogo className="h-[clamp(4.25rem,12vmin,7rem)] w-auto" />
+        </h1>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-[clamp(0.3rem,1vmin,0.6rem)] whitespace-nowrap rounded-full bg-purple-800 px-fluid py-fluid-sm text-fluid-sm font-extrabold text-white shadow-lg">
             <MonitorPlay className="size-[clamp(0.95rem,2.4vmin,1.4rem)]" aria-hidden="true" />
             شاشة العرض
           </span>
-          <span className="hidden rounded-full bg-purple-100 px-3 py-1.5 text-fluid-xs font-bold text-purple-800 sm:inline">
+          <span className="hidden whitespace-nowrap rounded-full bg-purple-100 px-3 py-1.5 text-fluid-xs font-bold text-purple-800 sm:inline">
             الجولة {Math.max(state.roundNumber, 1)}
           </span>
         </div>
-        <h1 className="leading-none">
-          <HurufLogo className="h-[clamp(3.75rem,11vmin,6.5rem)] w-auto" />
-        </h1>
       </header>
 
       {/* Banner */}
@@ -95,8 +95,8 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
         </p>
       </div>
 
-      {/* Main: board + sidebar */}
-      <main className="flex min-h-0 flex-1 flex-col items-stretch gap-fluid overflow-hidden p-[clamp(0.6rem,2vmin,1.25rem)] lg:flex-row">
+      {/* Main: sidebar (RTL start, right) + board */}
+      <main className="flex min-h-0 flex-1 flex-col items-stretch gap-fluid overflow-hidden p-[clamp(0.6rem,2vmin,1.25rem)] lg:flex-row-reverse">
         <section className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
           <HexGrid
             layout={state.layout}
@@ -114,7 +114,7 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
         </section>
 
         {/* Purple sidebar */}
-        <aside className="scroll-thin flex w-full min-w-0 flex-col gap-fluid rounded-[2rem] bg-purple-800 p-[clamp(0.8rem,2.4vmin,1.5rem)] shadow-2xl lg:max-h-full lg:w-[clamp(280px,32vmin,420px)] lg:shrink-0 lg:overflow-y-auto">
+        <aside className="scrollbar-none flex w-full min-w-0 flex-col gap-fluid rounded-[2rem] bg-purple-800 p-[clamp(0.8rem,2.4vmin,1.5rem)] shadow-2xl lg:max-h-full lg:w-[clamp(300px,36vmin,460px)] lg:shrink-0 lg:overflow-y-auto">
           {/* Scores */}
           <div className="flex items-center justify-around gap-3">
             {(['A', 'B'] as LettersTeam[]).map(team => (
@@ -186,7 +186,7 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-fluid-md font-extrabold leading-snug">{state.question.q}</p>
+              <p className="mt-1 text-fluid-md font-extrabold leading-relaxed">{state.question.q}</p>
               {state.question.a && state.phase === 'round_end' ? (
                 <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-fluid-sm font-black text-emerald-700">
                   الجواب: {state.question.a}
@@ -213,7 +213,7 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
             {(['A', 'B'] as LettersTeam[]).map(team => (
               <span
                 key={team}
-                className={`rounded-full border-2 px-[clamp(0.55rem,1.6vmin,1rem)] py-[clamp(0.3rem,0.9vmin,0.6rem)] text-fluid-xs font-extrabold transition-colors ${
+                className={`whitespace-nowrap rounded-full border-2 px-[clamp(0.55rem,1.6vmin,1rem)] py-[clamp(0.3rem,0.9vmin,0.6rem)] text-fluid-xs font-extrabold tabular-nums transition-colors ${
                   state.activeTeam === team
                     ? 'border-amber-300 bg-amber-300 text-purple-900'
                     : 'border-purple-600 text-purple-300'
@@ -226,12 +226,12 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
 
           {/* Board legend: which bands belong to which team */}
           <div className="space-y-1.5 rounded-2xl bg-purple-900/60 p-[clamp(0.55rem,1.5vmin,1rem)] text-fluid-2xs font-bold text-purple-100">
-            <p className="flex items-center gap-2">
-              <span className="inline-block size-3 shrink-0 rounded-sm bg-green-500" aria-hidden="true" />
+            <p className="flex items-start gap-2">
+              <span className="mt-[0.3em] inline-block size-3 shrink-0 rounded-sm bg-green-500" aria-hidden="true" />
               الفريق الأول: {TEAM_MISSIONS.A}
             </p>
-            <p className="flex items-center gap-2">
-              <span className="inline-block size-3 shrink-0 rounded-sm bg-orange-400" aria-hidden="true" />
+            <p className="flex items-start gap-2">
+              <span className="mt-[0.3em] inline-block size-3 shrink-0 rounded-sm bg-orange-400" aria-hidden="true" />
               الفريق الثاني: {TEAM_MISSIONS.B}
             </p>
           </div>
