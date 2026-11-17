@@ -3,6 +3,7 @@
 import {
   BookOpen,
   Check,
+  Copy,
   Dices,
   Hourglass,
   Link2,
@@ -66,10 +67,34 @@ interface HostConsoleProps {
 }
 
 const QR_ROLES = [
-  { role: 'teamA', label: 'الفريق الأول', icon: Trophy },
-  { role: 'teamB', label: 'الفريق الثاني', icon: Trophy },
-  { role: 'host', label: 'المقدم (صاحب الجلسة)', icon: Sparkles },
-  { role: 'display', label: 'شاشة العرض الكبيرة', icon: MonitorPlay },
+  {
+    role: 'teamA',
+    label: 'الفريق الأول',
+    icon: Trophy,
+    chip: 'bg-green-100 text-green-800 border-green-300',
+    tile: 'ring-green-300/70',
+  },
+  {
+    role: 'teamB',
+    label: 'الفريق الثاني',
+    icon: Trophy,
+    chip: 'bg-orange-100 text-orange-800 border-orange-300',
+    tile: 'ring-orange-300/70',
+  },
+  {
+    role: 'host',
+    label: 'المقدم',
+    icon: Sparkles,
+    chip: 'bg-purple-100 text-purple-800 border-purple-300',
+    tile: 'ring-purple-300/70',
+  },
+  {
+    role: 'display',
+    label: 'شاشة العرض',
+    icon: MonitorPlay,
+    chip: 'bg-amber-100 text-amber-800 border-amber-300',
+    tile: 'ring-amber-300/70',
+  },
 ]
 
 // Filter selectors for the question bank — options come straight from the
@@ -126,30 +151,59 @@ function QuestionFilterControls({
   )
 }
 
+function QrCard({ item }: { item: (typeof QR_ROLES)[number] }) {
+  const [copied, setCopied] = useState(false)
+  const target = `/?game=huruf&role=${item.role}`
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${target}`)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard unavailable (non-secure context) — ignore silently
+    }
+  }
+
+  return (
+    <div className="relative flex flex-col items-center gap-2.5 rounded-2xl border-2 bg-card/60 p-3 sm:p-4">
+      <button
+        type="button"
+        onClick={copyLink}
+        aria-label="نسخ الرابط"
+        title="نسخ الرابط"
+        className="absolute top-2 left-2 flex size-8 items-center justify-center rounded-xl border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        {copied ? (
+          <Check className="size-4 text-emerald-600" aria-hidden="true" />
+        ) : (
+          <Copy className="size-4" aria-hidden="true" />
+        )}
+      </button>
+      <div className={`rounded-2xl bg-white p-2 shadow-sm ring-4 ${item.tile}`}>
+        <img
+          src={`/api/qr?text=${encodeURIComponent(target)}`}
+          alt={`رمز QR لدخول ${item.label}`}
+          className="size-24 sm:size-28 lg:size-32"
+        />
+      </div>
+      <span
+        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-extrabold sm:text-sm ${item.chip}`}
+      >
+        <item.icon className="size-3.5 sm:size-4" aria-hidden="true" />
+        {item.label}
+      </span>
+      <span className="text-[10px] font-bold text-muted-foreground">امسح بالكاميرا للدخول</span>
+    </div>
+  )
+}
+
 function QrSection() {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {QR_ROLES.map(item => {
-        const target = `/?game=huruf&role=${item.role}`
-        return (
-          <div key={item.role} className="flex flex-col items-center gap-2 text-center">
-            <div className="rounded-2xl border-4 border-purple-200 bg-white p-2 shadow">
-              <img
-                src={`/api/qr?text=${encodeURIComponent(target)}`}
-                alt={`رمز QR لدخول ${item.label}`}
-                className="size-24 sm:size-28"
-              />
-            </div>
-            <p className="flex items-center gap-1 text-sm font-extrabold text-purple-800">
-              <item.icon className="size-4" aria-hidden="true" />
-              {item.label}
-            </p>
-            <p className="max-w-full break-all text-[10px] leading-tight text-muted-foreground" dir="ltr">
-              {target}
-            </p>
-          </div>
-        )
-      })}
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {QR_ROLES.map(item => (
+        <QrCard key={item.role} item={item} />
+      ))}
     </div>
   )
 }
@@ -179,10 +233,13 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                 رموز QR
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-right">امسح للانضمام</DialogTitle>
-                <DialogDescription className="text-right">
+            <DialogContent className="max-w-[calc(100%-2rem)] gap-5 sm:max-w-xl">
+              <DialogHeader className="items-center text-center">
+                <DialogTitle className="flex items-center justify-center gap-2 text-center">
+                  <QrCode className="size-5 text-purple-600" aria-hidden="true" />
+                  رموز QR للانضمام
+                </DialogTitle>
+                <DialogDescription className="text-center">
                   كل فريق يمسح رمزه من جواله، والمقدم يمسح رمز الجلسة، وشاشة العرض تفتح على التلفاز.
                 </DialogDescription>
               </DialogHeader>
