@@ -55,3 +55,7 @@ server.log
 # local database
 /db/*.db
 /db/*.db-journal
+
+# local build probes
+/.buildcopy
+/.next-prod

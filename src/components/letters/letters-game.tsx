@@ -71,7 +71,7 @@ function RoleChooser() {
           <a
             key={item.role}
             href={`/?game=huruf&role=${item.role}`}
-            className={candyClasses(item.variant, 'md', 4, 'h-auto flex-col gap-1 rounded-3xl p-5 text-center [&_svg:not([class*=\'size-\'])]:size-8')}
+            className={candyClasses(item.variant, 'md', 4, "h-auto flex-col gap-1 rounded-3xl p-5 text-center [&_svg:not([class*='size-'])]:size-8")}
           >
             <item.icon aria-hidden="true" />
             <span className="text-lg font-black">{item.label}</span>

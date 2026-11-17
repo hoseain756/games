@@ -1,0 +1,17 @@
+node_modules
+.next
+.next-prod
+db
+.env*
+*.log
+dev.log
+server.log
+upload
+download
+agent-ctx
+skills
+.git
+.claude
+.z-ai-config
+prompt
+test

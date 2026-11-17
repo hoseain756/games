@@ -28,7 +28,7 @@ export type CandyVariant =
 export type CandySize = 'sm' | 'md' | 'lg' | 'xl'
 
 const CANDY_BASE =
-  'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-2xl font-extrabold leading-none outline-none transition-all duration-100 focus-visible:ring-4 focus-visible:ring-purple-300/60 disabled:pointer-events-none disabled:opacity-70 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=\'size-\'])]:size-5'
+  "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-2xl font-extrabold leading-none outline-none transition-all duration-100 focus-visible:ring-4 focus-visible:ring-purple-300/60 disabled:pointer-events-none disabled:opacity-70 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5"
 
 // Fill + hard bottom edge + soft ambient shadow + press (reference formula:
 // `0 4px 0 0 <edge>, 0 8px 15px rgba(0,0,0,.3)` → active sinks 3px).
@@ -81,10 +81,10 @@ const GHOST: Record<'ghost' | 'ghostDanger', string> = {
 }
 
 const SIZES: Record<CandySize, string> = {
-  sm: 'h-9 gap-1.5 rounded-xl px-3.5 text-xs [&_svg:not([class*=\'size-\'])]:size-4',
+  sm: "h-9 gap-1.5 rounded-xl px-3.5 text-xs [&_svg:not([class*='size-'])]:size-4",
   md: 'h-11 px-5 text-sm',
   lg: 'h-14 px-6 text-lg font-black',
-  xl: 'h-16 px-6 text-lg font-black [&_svg:not([class*=\'size-\'])]:size-6',
+  xl: "h-16 px-6 text-lg font-black [&_svg:not([class*='size-'])]:size-6",
 }
 
 export function candyClasses(
