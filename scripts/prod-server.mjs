@@ -44,6 +44,11 @@ function startNext() {
     env: childEnv,
     stdio: 'inherit',
   })
+  child.on('error', err => {
+    // Do NOT crash the front server on spawn failure (missing build, missing
+    // runtime binary...): keep proxying whatever is reachable and retry.
+    console.error(`[front] cannot spawn Next standalone: ${err.message} — retrying in 2s`)
+  })
   child.on('exit', code => {
     console.error(`[front] Next standalone exited (${code}) — restarting in 2s`)
     setTimeout(startNext, 2000)
