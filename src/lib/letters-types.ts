@@ -25,6 +25,42 @@ export interface LettersFilters {
   difficulty: string
 }
 
+/**
+ * Customizable team identity (host sets name + icon from the console).
+ * `name` may be empty -> fall back to TEAM_LABELS.
+ * `icon` is one of TEAM_ICON_KEYS (mapped to a Lucide icon on the client).
+ */
+export interface LettersTeamInfo {
+  name: string
+  icon: string
+}
+
+/** One finished round as shown in the host's round log. */
+export interface LettersHistoryEntry {
+  round: number
+  letter: string | null
+  outcome: 'correct' | 'failed'
+  team: LettersTeam | null
+  points: number
+  /** Epoch ms when the round was recorded. */
+  at: number
+}
+
+/** Fastest buzz-in of the whole match (display-screen live stat). */
+export interface LettersFastestAnswer {
+  team: LettersTeam
+  /** Seconds from "buttons open" to the buzz, rounded to 0.1s. */
+  seconds: number
+  round: number
+}
+
+/** Icon keys offered in the host's team customization picker. */
+export const TEAM_ICON_KEYS = [
+  'flag', 'crown', 'star', 'zap', 'rocket',
+  'shield', 'flame', 'target', 'trophy', 'heart',
+] as const
+export type TeamIconKey = (typeof TEAM_ICON_KEYS)[number]
+
 /** Bank metadata broadcast to every screen (no questions/answers included). */
 export interface LettersBankInfo {
   totalQuestions: number
@@ -120,6 +156,20 @@ export interface LettersState {
   bankInfo: LettersBankInfo
   /** Last text answer a team submitted for verification (host visibility). */
   lastAnswerText: string | null
+  /** Custom team identities (name may be empty -> TEAM_LABELS fallback). */
+  teams: Record<LettersTeam, LettersTeamInfo>
+  /** When true, team screens can only join with the session join code. */
+  sessionLocked: boolean
+  /** 4-digit code; always embedded in QR/team links, required when locked. */
+  joinCode: string
+  /** Finished rounds, newest first (host round log). */
+  history: LettersHistoryEntry[]
+  /** True when the host can undo the last judgment/cancel. */
+  canUndo: boolean
+  /** Fastest buzz-in of the match so far (null before the first buzz). */
+  fastest: LettersFastestAnswer | null
+  /** Current consecutive-correct streak per team. */
+  streaks: Record<LettersTeam, number>
 }
 
 /** "الكل" sentinel used by the filter selectors. */
@@ -128,6 +178,29 @@ export const FILTER_ALL = 'الكل'
 export const TEAM_LABELS: Record<LettersTeam, string> = {
   A: 'الفريق الأول',
   B: 'الفريق الثاني',
+}
+
+/** Custom team name (when set) or the default label. */
+export function teamLabel(
+  teams: Record<LettersTeam, LettersTeamInfo> | null | undefined,
+  team: LettersTeam,
+): string {
+  const custom = teams?.[team]?.name?.trim()
+  return custom && custom.length > 0 ? custom : TEAM_LABELS[team]
+}
+
+/** Custom team icon key (with a safe fallback). */
+export function teamIcon(
+  teams: Record<LettersTeam, LettersTeamInfo> | null | undefined,
+  team: LettersTeam,
+): string {
+  const icon = teams?.[team]?.icon
+  return icon && (TEAM_ICON_KEYS as readonly string[]).includes(icon) ? icon : 'flag'
+}
+
+/** Default identities for a fresh session. */
+export function defaultTeamInfo(): Record<LettersTeam, LettersTeamInfo> {
+  return { A: { name: '', icon: 'flag' }, B: { name: '', icon: 'zap' } }
 }
 
 /** Colors per team (matches the reference board: green vs orange). */

@@ -7,10 +7,15 @@ import type { LettersRole, LettersState } from '@/lib/letters-types'
 /**
  * Connection to the letters mini-service through the Caddy gateway.
  * Never use a port in the URL — always XTransformPort.
+ *
+ * `code` is the session join code (required when the host locks the session).
+ * When the engine rejects the join, `denied` flips true and the screen can
+ * show a code entry form.
  */
-export function useLettersSocket(role: LettersRole) {
+export function useLettersSocket(role: LettersRole, code?: string) {
   const [state, setState] = useState<LettersState | null>(null)
   const [connected, setConnected] = useState(false)
+  const [denied, setDenied] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   /** serverNow - clientNow, updated inside the state event callback. */
   const [offset, setOffset] = useState(0)
@@ -21,7 +26,8 @@ export function useLettersSocket(role: LettersRole) {
     // The role MUST travel inside the URL query (not the `query` option):
     // when the URI already carries `XTransformPort`, socket.io ignores the
     // option query, and Caddy forwards URL params reliably.
-    const instance = io(`/?XTransformPort=3004&role=${role}`, {
+    const codePart = code ? `&code=${encodeURIComponent(code)}` : ''
+    const instance = io(`/?XTransformPort=3004&role=${role}${codePart}`, {
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,
@@ -32,26 +38,40 @@ export function useLettersSocket(role: LettersRole) {
 
     socketRef.current = instance
 
-    const onConnect = () => setConnected(true)
+    const onConnect = () => {
+      setConnected(true)
+      // NOTE: `denied` is NOT cleared here — a connection can still be
+      // rejected right after connecting. It clears only when real game
+      // state arrives (onState), so the code gate keeps the typed value.
+    }
     const onDisconnect = () => setConnected(false)
+    const onDenied = () => {
+      setConnected(false)
+      setDenied(true)
+      // Stop the retry loop — the user must enter the code first.
+      instance.disconnect()
+    }
     const onState = (next: LettersState) => {
       setOffset(next.serverNow - Date.now())
+      setDenied(false)
       setState(next)
     }
 
     instance.on('connect', onConnect)
     instance.on('disconnect', onDisconnect)
+    instance.on('letters:join_denied', onDenied)
     instance.on('letters:state', onState)
 
     return () => {
       instance.off('connect', onConnect)
       instance.off('disconnect', onDisconnect)
+      instance.off('letters:join_denied', onDenied)
       instance.off('letters:state', onState)
       instance.removeAllListeners()
       instance.disconnect()
       socketRef.current = null
     }
-  }, [role])
+  }, [role, code])
 
   // Local ticker so countdowns re-render smoothly.
   useEffect(() => {
@@ -73,5 +93,5 @@ export function useLettersSocket(role: LettersRole) {
     return Math.max(0, Math.ceil(left / 1000))
   }, [state?.phaseEndsAt, now, offset])
 
-  return { state, connected, remaining, act }
+  return { state, connected, denied, remaining, act }
 }

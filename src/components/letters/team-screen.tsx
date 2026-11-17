@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   Bell,
   CheckCircle2,
@@ -16,11 +16,19 @@ import {
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import { HurufLogo } from '@/components/letters/huruf-logo'
 import { CandyButton, type CandyVariant } from '@/components/letters/candy-button'
+import { TeamIcon } from '@/components/letters/team-icon'
+import {
+  playSound,
+  playVoiceTurnAlert,
+  unlockAudio,
+  vibrateTurnAlert,
+} from '@/lib/letters-sounds'
 import {
   ARABIC_LETTERS,
   TEAM_COLORS,
-  TEAM_LABELS,
   TEAM_MISSIONS,
+  teamIcon,
+  teamLabel,
   type LettersState,
   type LettersTeam,
 } from '@/lib/letters-types'
@@ -34,6 +42,8 @@ interface TeamScreenProps {
   state: LettersState
   team: LettersTeam
   remaining: number | null
+  /** Live socket status — false shows a reconnecting pill under the header. */
+  connected: boolean
   onPick: (letter: string) => void
   onReady: () => void
   onBuzz: () => void
@@ -55,10 +65,58 @@ function TimerPill({ remaining }: { remaining: number | null }) {
   )
 }
 
-export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: TeamScreenProps) {
+export function TeamScreen({
+  state,
+  team,
+  remaining,
+  connected,
+  onPick,
+  onReady,
+  onBuzz,
+}: TeamScreenProps) {
   const isMyTurn = state.activeTeam === team
   const otherTeam: LettersTeam = team === 'A' ? 'B' : 'A'
   const color = TEAM_COLORS[team]
+
+  // Unlock WebAudio on the first user gesture (phone autoplay policies).
+  useEffect(() => {
+    const unlock = () => unlockAudio()
+    window.addEventListener('pointerdown', unlock, { once: true })
+    window.addEventListener('keydown', unlock, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+  }, [])
+
+  // Turn alerts: sound + voice + vibration on phase transitions for this team.
+  const prevPhase = useRef(state.phase)
+  useEffect(() => {
+    const prev = prevPhase.current
+    prevPhase.current = state.phase
+    if (prev === state.phase) return // first render or no transition yet
+    if (state.phase === 'team_turn' && state.activeTeam === team) {
+      playSound('bell')
+      playVoiceTurnAlert()
+      vibrateTurnAlert()
+    } else if (state.phase === 'open') {
+      // Buzzers open for everyone — alert both teams.
+      playSound('bell')
+      playVoiceTurnAlert()
+      vibrateTurnAlert()
+    } else if (state.phase === 'choosing' && state.activeTeam === team) {
+      playSound('bell')
+      vibrateTurnAlert()
+    } else if (
+      state.phase === 'round_end' &&
+      state.result?.outcome === 'correct' &&
+      state.result.team === team
+    ) {
+      playSound('correct')
+    } else if (state.phase === 'game_over' && state.gameWinner === team) {
+      playSound('fanfare')
+    }
+  }, [state.phase, state.activeTeam, state.result, state.gameWinner, team])
 
   const selectable = useMemo(() => {
     if (state.phase !== 'choosing' || !isMyTurn) return null
@@ -112,7 +170,7 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
     }
   } else if (state.phase === 'buzz_answer') {
     button = {
-      label: `${TEAM_LABELS[otherTeam]} سبقكم للضغط!`,
+      label: `${teamLabel(state.teams, otherTeam)} سبقكم للضغط!`,
       icon: Lock,
       enabled: false,
       variant: 'purple',
@@ -156,21 +214,21 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
       case 'idle':
         return state.lastEvent ?? 'استعدوا!'
       case 'choosing':
-        return isMyTurn ? 'دوركم! اختاروا حرفاً بسرعة' : `${TEAM_LABELS[state.activeTeam ?? 'A']} يختار حرفاً...`
+        return isMyTurn ? 'دوركم! اختاروا حرفاً بسرعة' : `${teamLabel(state.teams, state.activeTeam ?? 'A')} يختار حرفاً...`
       case 'team_turn':
-        return isMyTurn ? 'دوركم — ناقشوا وجاوبوا!' : `دور ${TEAM_LABELS[state.activeTeam ?? 'A']} — استعدوا للسرقة!`
+        return isMyTurn ? 'دوركم — ناقشوا وجاوبوا!' : `دور ${teamLabel(state.teams, state.activeTeam ?? 'A')} — استعدوا للسرقة!`
       case 'open':
         return 'انفتحت الأزرار! أول من يضغط يجاوب'
       case 'buzz_answer':
-        return isMyTurn ? 'سبقتم الجميع — جاوبوا الآن!' : `${TEAM_LABELS[otherTeam]} يجيب الآن...`
+        return isMyTurn ? 'سبقتم الجميع — جاوبوا الآن!' : `${teamLabel(state.teams, otherTeam)} يجيب الآن...`
       case 'round_end':
         return state.result?.outcome === 'correct'
-          ? `${state.result.team === team ? 'أحسنتم! كسبتوا الخلية' : `${TEAM_LABELS[state.result.team ?? 'A']} كسب الخلية`}`
+          ? `${state.result.team === team ? 'أحسنتم! كسبتوا الخلية' : `${teamLabel(state.teams, state.result.team ?? 'A')} كسب الخلية`}`
           : 'انتهت الجولة دون إجابة'
       case 'game_over':
         return state.gameWinner === team
           ? 'فزتم! وصّلتم شريط فريقكم — مبروك!'
-          : `${TEAM_LABELS[state.gameWinner ?? 'A']} وصّل شريطه وفاز باللعبة`
+          : `${teamLabel(state.teams, state.gameWinner ?? 'A')} وصّل شريطه وفاز باللعبة`
     }
   })()
 
@@ -190,10 +248,24 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
             className="size-8"
             fontSize={40}
           />
-          <span>{TEAM_LABELS[team]}</span>
+          <TeamIcon icon={teamIcon(state.teams, team)} className="size-4 shrink-0" />
+          <span>{teamLabel(state.teams, team)}</span>
         </div>
         <HurufLogo className="h-12 w-auto" />
       </header>
+
+      {/* Connection status — normal flow under the header, never over the buzzer */}
+      {!connected && (
+        <div className="flex justify-center px-4 pt-2">
+          <span
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-800 shadow-sm animate-pulse"
+          >
+            انقطع الاتصال — جارٍ إعادة الاتصال تلقائياً...
+          </span>
+        </div>
+      )}
 
       {/* Team mission on the connection board */}
       <div className="mt-2 flex justify-center px-4">
@@ -322,7 +394,7 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
           >
             <p className="text-lg font-black">
               {state.result.outcome === 'correct'
-                ? `${TEAM_LABELS[state.result.team ?? 'A']} أجاب صح — +1!`
+                ? `${teamLabel(state.teams, state.result.team ?? 'A')} أجاب صح — +1!`
                 : 'لا أحد أجاب صح هذه الجولة'}
             </p>
             {state.result.answer && (
@@ -346,7 +418,7 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
               aria-hidden="true"
             />
             <p className="mt-2 text-xl font-black">
-              {state.gameWinner === team ? 'فزتم باللعبة!' : `${TEAM_LABELS[state.gameWinner ?? 'A']} فاز باللعبة`}
+              {state.gameWinner === team ? 'فزتم باللعبة!' : `${teamLabel(state.teams, state.gameWinner ?? 'A')} فاز باللعبة`}
             </p>
             <p className="mt-1 text-sm font-bold text-purple-500">
               {state.gameWinner === team ? 'وصّلتم شريط فريقكم بالخلايا' : 'وصّل شريطه قبلكم — حظاً أوفر المرة القادمة'}

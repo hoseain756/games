@@ -16,6 +16,7 @@ export function HomeRouter() {
   const game = params.get('game')
 
   if (game === 'photo') return <PhotoGameRoot />
-  if (game === 'huruf') return <LettersGame roleParam={params.get('role')} />
+  if (game === 'huruf')
+    return <LettersGame roleParam={params.get('role')} codeParam={params.get('code')} />
   return <AppHome />
 }

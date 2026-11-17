@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { HelpCircle, MonitorPlay, RefreshCw, Sparkles, TriangleAlert, Trophy } from 'lucide-react'
+import { HelpCircle, Lock, MonitorPlay, RefreshCw, Sparkles, TriangleAlert, Trophy } from 'lucide-react'
 import { useLettersSocket } from '@/hooks/use-letters-socket'
 import { HostConsole } from '@/components/letters/host-console'
 import { TeamScreen } from '@/components/letters/team-screen'
@@ -12,6 +12,7 @@ import { ROLE_LABELS, type LettersRole } from '@/lib/letters-types'
 // ---------------------------------------------------------------------------
 // Entry point of "حروف مع حسين" — routes the ?role= query to the matching
 // screen. Unknown / missing roles get a chooser with big buttons.
+// Sessions can be locked by the host: team roles then need the join code.
 // ---------------------------------------------------------------------------
 
 const VALID_ROLES: LettersRole[] = ['host', 'teamA', 'teamB', 'display']
@@ -86,8 +87,68 @@ function RoleChooser() {
   )
 }
 
-function LettersScreen({ role }: { role: LettersRole }) {
-  const { state, connected, remaining, act } = useLettersSocket(role)
+/** Shown when the session is locked and the team has no (or a wrong) code. */
+function JoinCodeGate({
+  wrongAttempt,
+  onSubmit,
+}: {
+  wrongAttempt: boolean
+  onSubmit: (code: string) => void
+}) {
+  const [value, setValue] = useState('')
+
+  return (
+    <div
+      className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#fdf3e7] p-6 text-center text-purple-800"
+      style={{ fontFamily: 'var(--font-baloo), var(--font-tajawal), sans-serif' }}
+    >
+      <span className="grid size-16 place-items-center rounded-full bg-purple-100 text-purple-600">
+        <Lock className="size-8" aria-hidden="true" />
+      </span>
+      <div>
+        <h1 className="text-2xl font-black">الجلسة مقفلة برمز دخول</h1>
+        <p className="mt-1 text-sm font-bold text-purple-500">
+          اطلب رمز الجلسة الرباعي من المقدم ثم أدخله للمتابعة
+        </p>
+      </div>
+      <div className="flex w-full max-w-xs flex-col gap-3">
+        <input
+          value={value}
+          onChange={event => setValue(event.target.value.replace(/\D/g, '').slice(0, 4))}
+          onKeyDown={event => {
+            if (event.key === 'Enter' && value.length === 4) onSubmit(value)
+          }}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={4}
+          dir="ltr"
+          aria-label="رمز الجلسة"
+          placeholder="----"
+          className="h-16 rounded-2xl border-2 border-purple-300 bg-white text-center text-3xl font-black tracking-[0.5em] text-purple-800 outline-none focus:border-purple-500"
+        />
+        {wrongAttempt && (
+          <p role="alert" className="text-sm font-extrabold text-red-600">
+            الرمز غير صحيح — تأكد منه مع المقدم وحاول مجدداً
+          </p>
+        )}
+        <CandyButton
+          variant="purple"
+          size="lg"
+          className="h-14"
+          disabled={value.length !== 4}
+          onClick={() => onSubmit(value)}
+        >
+          دخول الجلسة
+        </CandyButton>
+      </div>
+    </div>
+  )
+}
+
+function LettersScreen({ role, initialCode }: { role: LettersRole; initialCode: string | null }) {
+  const [code, setCode] = useState(initialCode ?? '')
+  const [triedCode, setTriedCode] = useState(false)
+  const { state, connected, denied, remaining, act } = useLettersSocket(role, code || undefined)
 
   // Watchdog: never leave a phone hanging on the spinner forever. After 12s
   // without game state we surface a clear error + retry, while the socket
@@ -100,6 +161,10 @@ function LettersScreen({ role }: { role: LettersRole }) {
     const timer = window.setTimeout(() => setStuck(true), 12000)
     return () => window.clearTimeout(timer)
   }, [state, connected])
+
+  if (denied) {
+    return <JoinCodeGate wrongAttempt={triedCode} onSubmit={next => { setTriedCode(true); setCode(next) }} />
+  }
 
   if (!state) {
     return (
@@ -144,7 +209,7 @@ function LettersScreen({ role }: { role: LettersRole }) {
   }
 
   if (role === 'display') {
-    return <DisplayScreen state={state} remaining={remaining} />
+    return <DisplayScreen state={state} remaining={remaining} connected={connected} />
   }
 
   if (role === 'host') {
@@ -164,6 +229,7 @@ function LettersScreen({ role }: { role: LettersRole }) {
       state={state}
       team={team}
       remaining={remaining}
+      connected={connected}
       onPick={letter => act('letters:pick', { letter })}
       onReady={() => act('letters:ready')}
       onBuzz={() => act('letters:buzz')}
@@ -171,8 +237,8 @@ function LettersScreen({ role }: { role: LettersRole }) {
   )
 }
 
-export function LettersGame({ roleParam }: { roleParam: string | null }) {
+export function LettersGame({ roleParam, codeParam }: { roleParam: string | null; codeParam?: string | null }) {
   const role = parseRole(roleParam)
   if (!role) return <RoleChooser />
-  return <LettersScreen role={role} />
+  return <LettersScreen role={role} initialCode={codeParam ?? null} />
 }

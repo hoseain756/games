@@ -31,7 +31,9 @@ import {
 import { answersMatch } from './arabic-normalize'
 import { BOARD_CELLS, findWinningChain } from './hex-board'
 import type {
+  LettersFastestAnswer,
   LettersFilters,
+  LettersHistoryEntry,
   LettersPhase,
   LettersQuestionView,
   LettersRole,
@@ -39,7 +41,7 @@ import type {
   LettersState,
   LettersTeam,
 } from './letters-types'
-import { FILTER_ALL } from './letters-types'
+import { defaultTeamInfo, FILTER_ALL, TEAM_ICON_KEYS, TEAM_LABELS } from './letters-types'
 
 const ROLES: LettersRole[] = ['host', 'teamA', 'teamB', 'display']
 const OTHER: Record<LettersTeam, LettersTeam> = { A: 'B', B: 'A' }
@@ -67,6 +69,14 @@ interface ServerState {
   chooseAttempts: number
   filters: LettersFilters
   lastAnswerText: string | null
+  teams: Record<LettersTeam, { name: string; icon: string }>
+  sessionLocked: boolean
+  joinCode: string
+  history: LettersHistoryEntry[]
+  fastest: LettersFastestAnswer | null
+  streaks: Record<LettersTeam, number>
+  /** Epoch ms of the moment buzzers opened (for speed stats). */
+  turnOpenedAt: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +94,20 @@ function shuffled<T>(items: readonly T[]): T[] {
 
 function defaultFilters(): LettersFilters {
   return { category: FILTER_ALL, difficulty: FILTER_ALL }
+}
+
+function randomJoinCode(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
+/**
+ * Appends a finished round to the host's round log (newest first, capped).
+ */
+function recordRound(
+  state: ServerState,
+  entry: Omit<LettersHistoryEntry, 'at'>,
+) {
+  state.history = [{ ...entry, at: Date.now() }, ...state.history].slice(0, 50)
 }
 
 function lobbyState(): ServerState {
@@ -111,6 +135,13 @@ function lobbyState(): ServerState {
     chooseAttempts: 0,
     filters: defaultFilters(),
     lastAnswerText: null,
+    teams: defaultTeamInfo(),
+    sessionLocked: false,
+    joinCode: randomJoinCode(),
+    history: [],
+    fastest: null,
+    streaks: { A: 0, B: 0 },
+    turnOpenedAt: null,
   }
 }
 
@@ -138,6 +169,14 @@ export function startLettersEngine(port: number) {
   httpServer.listen(port)
 
   let state: ServerState = lobbyState()
+  /** Snapshot taken right before a host judgment — one undo level. */
+  let undoSnapshot: ServerState | null = null
+
+  /** Custom team name (when set) or the default label. */
+  function teamName(team: LettersTeam): string {
+    const custom = state.teams[team]?.name?.trim()
+    return custom && custom.length > 0 ? custom : TEAM_LABELS[team]
+  }
 
   // Teams/display never receive the answer until the round ends; the host
   // always receives it.
@@ -190,6 +229,13 @@ export function startLettersEngine(port: number) {
       filters: { ...state.filters },
       bankInfo: BANK_INFO,
       lastAnswerText: state.lastAnswerText,
+      teams: { A: { ...state.teams.A }, B: { ...state.teams.B } },
+      sessionLocked: state.sessionLocked,
+      joinCode: state.joinCode,
+      history: state.history.slice(0, 30),
+      canUndo: undoSnapshot !== null,
+      fastest: state.fastest ? { ...state.fastest } : null,
+      streaks: { ...state.streaks },
     }
   }
 
@@ -228,9 +274,10 @@ export function startLettersEngine(port: number) {
       state.buzzWinner = null
       state.lastAnswerText = null
       state.phaseEndsAt = Date.now() + state.answerTime * 1000
+      state.turnOpenedAt = Date.now()
       state.lastEvent =
         reason === 'timeout'
-          ? `انتهى وقت ${finished === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} — بدأ وقت الفريق الآخر`
+          ? `انتهى وقت ${teamName(finished)} — بدأ وقت الفريق الآخر`
           : 'إجابة خاطئة — الدور الآن للفريق الآخر'
     } else {
       // Both teams used their windows: buzzers open for everyone.
@@ -238,6 +285,7 @@ export function startLettersEngine(port: number) {
       state.activeTeam = null
       state.phaseEndsAt = null
       state.locked = false
+      state.turnOpenedAt = Date.now()
       state.lastEvent = 'انفتحت الأزرار للجميع — أسرع فريق يضغط يجاوب!'
     }
   }
@@ -253,6 +301,15 @@ export function startLettersEngine(port: number) {
     }
     state.locked = false
 
+    // Round log + streak bookkeeping (the undo snapshot covers both).
+    if (outcome === 'correct' && team) {
+      state.streaks[team] += 1
+      recordRound(state, { round: state.roundNumber, letter: state.activeLetter, outcome, team, points: 1 })
+    } else if (outcome === 'failed') {
+      if (team) state.streaks[team] = 0
+      recordRound(state, { round: state.roundNumber, letter: state.activeLetter, outcome, team, points: 0 })
+    }
+
     if (outcome === 'correct') {
       // The claim may have connected the team's two edges -> whole-game win.
       // (Off-board bonus letters score +1 but claim no cell.)
@@ -261,13 +318,13 @@ export function startLettersEngine(port: number) {
         state.phase = 'game_over'
         state.gameWinner = win.team
         state.winPath = win.path.map(i => state.layout[i])
-        state.lastEvent = `${win.team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} وصّل شريطيه وفاز باللعبة!`
+        state.lastEvent = `${teamName(win.team)} وصّل شريطيه وفاز باللعبة!`
         return
       }
       state.phase = 'round_end'
       const onBoard = state.activeLetter ? state.layout.includes(state.activeLetter) : false
       state.lastEvent = onBoard
-        ? `إجابة صحيحة! ${team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} يفوز بالخلية`
+        ? `إجابة صحيحة! ${teamName(team ?? 'A')} يفوز بالخلية`
         : `إجابة صحيحة بونص! +1 (الحرف ليس على اللوحة)`
       return
     }
@@ -329,6 +386,20 @@ export function startLettersEngine(port: number) {
 
   io.on('connection', socket => {
     const role = roleOf(socket)
+
+    // Session lock: team screens must present the join code (embedded in the
+    // QR/link, or typed by hand). Anyone else is told why and kept in limbo.
+    const team = teamOf(socket)
+    if (team && state.sessionLocked) {
+      const raw = socket.handshake.query.code
+      const code = Array.isArray(raw) ? raw[0] : raw
+      if (code !== state.joinCode) {
+        console.log(`[letters-engine] join denied (locked session): ${socket.id} (${role})`)
+        socket.emit('letters:join_denied', { reason: 'locked' })
+        return
+      }
+    }
+
     console.log(`[letters-engine] socket connected: ${socket.id} (${role})`)
     socket.join(role)
 
@@ -371,12 +442,15 @@ export function startLettersEngine(port: number) {
     socket.on('letters:start', () => {
       if (role !== 'host') return
       if (state.phase !== 'lobby' && state.phase !== 'idle') return
-      const filters = state.filters
+      const { filters, teams, sessionLocked } = state
       state = lobbyState()
       state.filters = filters
+      state.teams = teams
+      state.sessionLocked = sessionLocked
       state.phase = 'idle'
       state.layout = shuffled(ARABIC_LETTERS).slice(0, BOARD_CELLS)
       state.roundNumber = 1
+      undoSnapshot = null
       state.lastEvent = 'بدأت الجلسة! افتح الدور لأحد الفريقين'
       broadcast()
     })
@@ -385,12 +459,15 @@ export function startLettersEngine(port: number) {
     socket.on('letters:new_game', () => {
       if (role !== 'host') return
       if (state.phase === 'lobby') return
-      const filters = state.filters
+      const { filters, teams, sessionLocked } = state
       state = lobbyState()
       state.filters = filters
+      state.teams = teams
+      state.sessionLocked = sessionLocked
       state.phase = 'idle'
       state.layout = shuffled(ARABIC_LETTERS).slice(0, BOARD_CELLS)
       state.roundNumber = 1
+      undoSnapshot = null
       state.lastEvent = 'لعبة جديدة! افتح الدور لأحد الفريقين'
       broadcast()
     })
@@ -411,6 +488,7 @@ export function startLettersEngine(port: number) {
         state.locked = false
         state.roundNumber += 1
       }
+      undoSnapshot = null
       state.phase = 'choosing'
       state.activeTeam = team
       state.activeLetter = null
@@ -421,7 +499,7 @@ export function startLettersEngine(port: number) {
       state.chooseAttempts = 0
       state.lastAnswerText = null
       state.phaseEndsAt = Date.now() + state.chooseTime * 1000
-      state.lastEvent = `${team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} يختار حرفاً من الخلايا`
+      state.lastEvent = `${teamName(team)} يختار حرفاً من الخلايا`
       broadcast()
     })
 
@@ -448,7 +526,7 @@ export function startLettersEngine(port: number) {
       state.buzzWinner = null
       state.lastAnswerText = null
       state.phaseEndsAt = Date.now() + state.answerTime * 1000
-      state.lastEvent = `اختار ${team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} حرف ${letter}`
+      state.lastEvent = `اختار ${teamName(team)} حرف ${letter}`
       broadcast()
     })
 
@@ -457,7 +535,7 @@ export function startLettersEngine(port: number) {
       if (!team || team !== state.activeTeam) return
       if (state.phase !== 'team_turn') return
       state.locked = true
-      state.lastEvent = `${team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} جاهز بالجواب — يا مقدم احكم!`
+      state.lastEvent = `${teamName(team)} جاهز بالجواب — يا مقدم احكم!`
       broadcast()
     })
 
@@ -472,7 +550,14 @@ export function startLettersEngine(port: number) {
       state.locked = false
       state.lastAnswerText = null
       state.phaseEndsAt = Date.now() + state.answerTime * 1000
-      state.lastEvent = `${team === 'A' ? 'الفريق الأول' : 'الفريق الثاني'} ضغط أولاً — جاوبوا الآن!`
+      // Live stat: reaction speed from "buttons open" to this buzz.
+      if (state.turnOpenedAt) {
+        const seconds = Math.round(((Date.now() - state.turnOpenedAt) / 1000) * 10) / 10
+        if (!state.fastest || seconds < state.fastest.seconds) {
+          state.fastest = { team, seconds, round: state.roundNumber }
+        }
+      }
+      state.lastEvent = `${teamName(team)} ضغط أولاً — جاوبوا الآن!`
       broadcast()
     })
 
@@ -498,7 +583,7 @@ export function startLettersEngine(port: number) {
         state.lastEvent = `إجابة مُتحقَّق منها: «${text}» — صحيحة!`
       } else {
         // Wrong: the round keeps running; the host can still judge manually.
-        state.lastEvent = `أجاب الفريق «${text}» — غير صحيحة، حاولوا من جديد أو قيّم يا مقدم`
+        state.lastEvent = `أجاب ${teamName(team)} «${text}» — غير صحيحة، حاولوا من جديد أو قيّم يا مقدم`
         socket.emit('letters:answer_result', { correct: false, text })
       }
       broadcast()
@@ -515,6 +600,10 @@ export function startLettersEngine(port: number) {
       const correct = rec.correct === true
       const team = state.activeTeam
 
+      // Safety net for misclicks: one undo level restoring the exact
+      // pre-judgment state (scores, claims, streaks, round log...).
+      undoSnapshot = structuredClone(state)
+
       if (correct) {
         applyCorrectAnswer(team)
       } else if (state.phase === 'team_turn') {
@@ -529,13 +618,69 @@ export function startLettersEngine(port: number) {
     socket.on('letters:cancel_round', () => {
       if (role !== 'host') return
       if (state.phase === 'lobby' || state.phase === 'idle' || state.phase === 'round_end') return
+      undoSnapshot = structuredClone(state)
       finishRound('failed', state.activeTeam)
+      broadcast()
+    })
+
+    /** Restores the pre-judgment snapshot (one level). */
+    socket.on('letters:undo', () => {
+      if (role !== 'host') return
+      if (!undoSnapshot) return
+      state = undoSnapshot
+      undoSnapshot = null
+      // If the restored window already elapsed, grant a fresh one so the
+      // timer doesn't instantly re-advance after the undo.
+      if (state.phaseEndsAt && state.phaseEndsAt <= Date.now()) {
+        const seconds = state.phase === 'choosing' ? state.chooseTime : state.answerTime
+        state.phaseEndsAt = Date.now() + seconds * 1000
+      }
+      state.lastEvent = 'تم التراجع عن آخر تحكيم — الجولة عادت كما كانت'
+      broadcast()
+    })
+
+    /** Manual score correction from the host console. */
+    socket.on('letters:score_edit', payload => {
+      if (role !== 'host') return
+      const rec = (payload ?? {}) as Record<string, unknown>
+      const team = rec.team === 'A' ? 'A' : rec.team === 'B' ? 'B' : null
+      const delta = Number(rec.delta)
+      if (!team || !Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 99) return
+      state.scores[team] = Math.max(0, state.scores[team] + delta)
+      state.lastEvent = `تعديل يدوي للنقاط: ${teamName(team)} ${delta > 0 ? '+' : ''}${delta}`
+      broadcast()
+    })
+
+    /** Team customization: display name + icon. */
+    socket.on('letters:team_info', payload => {
+      if (role !== 'host') return
+      const rec = (payload ?? {}) as Record<string, unknown>
+      const team = rec.team === 'A' ? 'A' : rec.team === 'B' ? 'B' : null
+      if (!team) return
+      if (typeof rec.name === 'string') {
+        state.teams[team].name = rec.name.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 24)
+      }
+      if (typeof rec.icon === 'string' && (TEAM_ICON_KEYS as readonly string[]).includes(rec.icon)) {
+        state.teams[team].icon = rec.icon
+      }
+      broadcast()
+    })
+
+    /** Session lock: when on, team screens need the join code to connect. */
+    socket.on('letters:toggle_lock', payload => {
+      if (role !== 'host') return
+      const rec = (payload ?? {}) as Record<string, unknown>
+      state.sessionLocked = rec.locked === true
+      state.lastEvent = state.sessionLocked
+        ? 'الجلسة مقفلة — الدخول للفرق برمز الجلسة فقط'
+        : 'الجلسة مفتوحة — أي فريق يمكنه الانضمام'
       broadcast()
     })
 
     socket.on('letters:next', () => {
       if (role !== 'host') return
       if (state.phase !== 'round_end') return
+      undoSnapshot = null
       toIdle('الجولة التالية — افتح الدور لأحد الفريقين')
       state.roundNumber += 1
       broadcast()
@@ -543,7 +688,11 @@ export function startLettersEngine(port: number) {
 
     socket.on('letters:end_session', () => {
       if (role !== 'host') return
+      const { teams, sessionLocked } = state
       state = lobbyState()
+      state.teams = teams
+      state.sessionLocked = sessionLocked
+      undoSnapshot = null
       broadcast()
     })
 
