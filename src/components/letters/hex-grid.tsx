@@ -36,10 +36,15 @@ const ROWS = 5
 // sits exactly in the middle of it (equal margin left/right/top/bottom).
 const PAD = 110
 
+// The whole cluster is nudged a little to the RIGHT: the odd rows already lean
+// right, so this evens out the corner wedges — without it the left corner
+// hexes bite into the green diagonals while the right ones leave a big gap.
+const X_SHIFT = 25
+
 // Odd rows (2nd and 4th) are pushed RIGHT by half a cell space; even rows sit
 // normally — the staggered honeycomb silhouette of the reference image.
 const cellCx = (row: number, col: number) =>
-  PAD + W / 2 + col * W + (row % 2 === 1 ? W / 2 : 0)
+  X_SHIFT + PAD + W / 2 + col * W + (row % 2 === 1 ? W / 2 : 0)
 const cellCy = (row: number) => PAD + R + row * ROW_H
 
 // Cluster extremes (odd rows protrude right by half a cell).
@@ -54,8 +59,14 @@ const VIEW_H = MAX_Y + PAD
 // Green band geometry: straight edge depth + diagonal corner runs. The bands
 // run slightly deeper than PAD so the top/bottom rows nestle into the green,
 // exactly like the reference image.
+//
+// The corner diagonals are INDEPENDENT per side: the top/bottom rows bulge
+// LEFT (even rows carry the corners) while the right corners are inset, so the
+// left diagonal pulls further in and the right one less — this keeps an equal
+// breathing gap (~35 units) between all four corner hexes and the diagonals.
 const BAND_H = 148
-const DIAG = 155
+const DIAG_L = 108
+const DIAG_R = 136
 
 function hexPoints(cx: number, cy: number, r: number): string {
   const points: string[] = []
@@ -107,11 +118,11 @@ function HexGridImpl({
       {/* Full-bleed frame: orange base (Team B sides) + green top/bottom bands (Team A) */}
       <rect x={0} y={0} width={VIEW_W} height={VIEW_H} fill={ORANGE} />
       <polygon
-        points={`0,0 ${VIEW_W.toFixed(0)},0 ${(VIEW_W - DIAG).toFixed(0)},${BAND_H} ${DIAG},${BAND_H}`}
+        points={`0,0 ${VIEW_W.toFixed(0)},0 ${(VIEW_W - DIAG_R).toFixed(0)},${BAND_H} ${DIAG_L},${BAND_H}`}
         fill={GREEN}
       />
       <polygon
-        points={`${DIAG},${(VIEW_H - BAND_H).toFixed(0)} ${(VIEW_W - DIAG).toFixed(0)},${(VIEW_H - BAND_H).toFixed(0)} ${VIEW_W.toFixed(0)},${VIEW_H.toFixed(0)} 0,${VIEW_H.toFixed(0)}`}
+        points={`${DIAG_L},${(VIEW_H - BAND_H).toFixed(0)} ${(VIEW_W - DIAG_R).toFixed(0)},${(VIEW_H - BAND_H).toFixed(0)} ${VIEW_W.toFixed(0)},${VIEW_H.toFixed(0)} 0,${VIEW_H.toFixed(0)}`}
         fill={GREEN}
       />
 
