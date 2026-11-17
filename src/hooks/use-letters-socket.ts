@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
+import { ENGINE_BASE } from '@/lib/realtime'
 import type { LettersRole, LettersState } from '@/lib/letters-types'
 
 /**
- * Connection to the letters mini-service through the Caddy gateway.
+ * Connection to the letters realtime engine. Same-origin by default (Caddy
+ * gateway / prod front server / single-container deploys), or an absolute
+ * ENGINE_BASE for split deploys (Vercel frontend + external engines).
  * Never use a port in the URL — always XTransformPort.
  *
  * `code` is the session join code (required when the host locks the session).
@@ -27,7 +30,7 @@ export function useLettersSocket(role: LettersRole, code?: string) {
     // when the URI already carries `XTransformPort`, socket.io ignores the
     // option query, and Caddy forwards URL params reliably.
     const codePart = code ? `&code=${encodeURIComponent(code)}` : ''
-    const instance = io(`/?XTransformPort=3004&role=${role}${codePart}`, {
+    const instance = io(`${ENGINE_BASE}/?XTransformPort=3004&role=${role}${codePart}`, {
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,

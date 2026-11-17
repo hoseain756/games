@@ -2,17 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
+import { ENGINE_BASE } from '@/lib/realtime'
 
 /**
- * Single shared connection to the game mini-service through the Caddy
- * gateway. Never use a port in the URL — always XTransformPort.
+ * Single shared connection to the questions realtime engine. Same-origin by
+ * default (Caddy gateway / prod front server / single-container deploys), or
+ * an absolute ENGINE_BASE for split deploys (Vercel frontend + external
+ * engines). Never use a port in the URL — always XTransformPort.
  */
 export function useGameSocket() {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    const instance = io('/?XTransformPort=3003', {
+    const instance = io(`${ENGINE_BASE}/?XTransformPort=3003`, {
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,
