@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { HexBadge, HexGrid } from '@/components/letters/hex-grid'
 import { HurufLogo } from '@/components/letters/huruf-logo'
+import { CandyButton, type CandyVariant } from '@/components/letters/candy-button'
 import {
   ARABIC_LETTERS,
   TEAM_COLORS,
@@ -72,7 +73,8 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
     label: string
     icon: typeof Zap
     enabled: boolean
-    classes: string
+    variant: CandyVariant
+    pulse?: boolean
     action?: () => void
   }
 
@@ -81,7 +83,8 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
       label: 'اضغط بسرعة!!',
       icon: Zap,
       enabled: true,
-      classes: 'bg-gradient-to-b from-red-500 to-red-700 border-red-800 shadow-[0_10px_0_#7f1d1d] animate-pulse',
+      variant: 'red',
+      pulse: true,
       action: onBuzz,
     }
   } else if (state.phase === 'team_turn' && isMyTurn) {
@@ -90,13 +93,14 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
           label: 'ثبّتوا الجواب! جاوبوا بصوت عالي',
           icon: CheckCircle2,
           enabled: false,
-          classes: 'bg-emerald-600 border-emerald-800 shadow-[0_10px_0_#065f46]',
+          variant: 'emerald',
         }
       : {
           label: 'عرفنا الجواب!',
           icon: CheckCircle2,
           enabled: true,
-          classes: `${team === 'A' ? 'bg-gradient-to-b from-green-400 to-green-500 border-green-600 shadow-[0_10px_0_#276b12]' : 'bg-gradient-to-b from-orange-400 to-orange-500 border-orange-600 shadow-[0_10px_0_#c2410c]'} animate-pulse`,
+          variant: team === 'A' ? 'green' : 'orange',
+          pulse: true,
           action: onReady,
         }
   } else if (state.phase === 'buzz_answer' && isMyTurn) {
@@ -104,21 +108,21 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
       label: 'جاوبوا الآن بصوت عالٍ!',
       icon: Bell,
       enabled: false,
-      classes: 'bg-emerald-600 border-emerald-800 shadow-[0_10px_0_#065f46]',
+      variant: 'emerald',
     }
   } else if (state.phase === 'buzz_answer') {
     button = {
       label: `${TEAM_LABELS[otherTeam]} سبقكم للضغط!`,
       icon: Lock,
       enabled: false,
-      classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+      variant: 'purple',
     }
   } else if (state.phase === 'game_over') {
     button = {
       label: 'انتهت اللعبة',
       icon: Trophy,
       enabled: false,
-      classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+      variant: 'purple',
     }
   } else if (state.phase === 'choosing') {
     button = isMyTurn
@@ -126,20 +130,20 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
           label: 'اختاروا خلية حرف من اللوحة',
           icon: PencilLine,
           enabled: false,
-          classes: 'bg-gradient-to-b from-purple-500 to-purple-700 border-purple-800 shadow-[0_10px_0_#4c1d95]',
+          variant: 'purple',
         }
       : {
           label: 'الدور على الفريق الآخر',
           icon: Lock,
           enabled: false,
-          classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+          variant: 'purple',
         }
   } else {
     button = {
       label: 'استعدوا... بانتظار المقدم',
       icon: Lock,
       enabled: false,
-      classes: 'bg-purple-300 border-purple-400 shadow-[0_10px_0_#6b21a8]',
+      variant: 'purple',
     }
   }
 
@@ -362,15 +366,17 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
         <div className="mx-auto w-full max-w-md">
-          <button
-            type="button"
+          <CandyButton
+            variant={button.variant}
+            size="xl"
+            depth={8}
             disabled={!button.enabled}
             onClick={button.action}
-            className={`flex h-32 w-full items-center justify-center gap-3 rounded-[2.5rem] border-4 text-2xl font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:active:scale-100 sm:h-36 ${button.classes}`}
+            className={`h-32 w-full rounded-[2.5rem] text-2xl sm:h-36 ${button.pulse ? 'animate-pulse' : ''}`}
           >
             <ButtonIcon className="size-10 shrink-0" aria-hidden="true" />
             {button.label}
-          </button>
+          </CandyButton>
         </div>
       </div>
     </div>

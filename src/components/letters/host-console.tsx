@@ -19,7 +19,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { CandyButton } from '@/components/letters/candy-button'
 import {
   Card,
   CardContent,
@@ -227,10 +227,10 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
         <div className="flex items-center gap-2">
           <Dialog open={qrOpen} onOpenChange={setQrOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">
+              <CandyButton variant="ghost" size="sm">
                 <QrCode className="size-4" aria-hidden="true" />
                 رموز QR
-              </Button>
+              </CandyButton>
             </DialogTrigger>
             <DialogContent className="max-w-[calc(100%-2rem)] gap-5 sm:max-w-xl">
               <DialogHeader className="items-center text-center">
@@ -245,15 +245,10 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
               <QrSection />
             </DialogContent>
           </Dialog>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
-            onClick={() => act('letters:end_session')}
-          >
+          <CandyButton variant="ghostDanger" size="sm" onClick={() => act('letters:end_session')}>
             <LogOut className="size-4" aria-hidden="true" />
             إنهاء الجلسة
-          </Button>
+          </CandyButton>
         </div>
       </div>
 
@@ -319,15 +314,15 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {ANSWER_TIME_OPTIONS.map(seconds => (
-                  <Button
+                  <CandyButton
                     key={seconds}
-                    type="button"
-                    variant={state.answerTime === seconds ? 'default' : 'outline'}
-                    className={`h-12 rounded-2xl text-base font-extrabold ${state.answerTime === seconds ? 'bg-purple-700 hover:bg-purple-800' : ''}`}
+                    variant={state.answerTime === seconds ? 'purple' : 'ghost'}
+                    className="h-12 text-base"
+                    aria-pressed={state.answerTime === seconds}
                     onClick={() => act('letters:config', { answerTime: seconds })}
                   >
                     {seconds === 60 ? 'دقيقة' : `${seconds} ثانية`}
-                  </Button>
+                  </CandyButton>
                 ))}
               </div>
             </div>
@@ -338,26 +333,27 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
               </p>
               <div className="grid grid-cols-4 gap-2">
                 {CHOOSE_TIME_OPTIONS.map(seconds => (
-                  <Button
+                  <CandyButton
                     key={seconds}
-                    type="button"
-                    variant={state.chooseTime === seconds ? 'default' : 'outline'}
-                    className={`h-12 rounded-2xl text-base font-extrabold ${state.chooseTime === seconds ? 'bg-purple-700 hover:bg-purple-800' : ''}`}
+                    variant={state.chooseTime === seconds ? 'purple' : 'ghost'}
+                    className="h-12 text-base"
+                    aria-pressed={state.chooseTime === seconds}
                     onClick={() => act('letters:config', { chooseTime: seconds })}
                   >
                     {seconds} ث
-                  </Button>
+                  </CandyButton>
                 ))}
               </div>
             </div>
-            <Button
+            <CandyButton
+              variant="yellow"
               size="lg"
-              className="h-14 rounded-2xl bg-gradient-to-b from-purple-600 to-purple-800 text-lg font-black hover:from-purple-700 hover:to-purple-900"
+              className="h-14"
               onClick={() => act('letters:start')}
             >
               <Play className="size-5" aria-hidden="true" />
               بدء الجلسة وترتيب الخلايا عشوائياً
-            </Button>
+            </CandyButton>
           </CardContent>
         </Card>
       ) : (
@@ -401,22 +397,22 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    size="lg"
-                    className="h-16 rounded-2xl bg-gradient-to-b from-green-500 to-green-600 text-lg font-black text-white shadow-[0_6px_0_#276b12] hover:from-green-400"
+                  <CandyButton
+                    variant="green"
+                    size="xl"
                     onClick={() => act('letters:open_turn', { team: 'A' })}
                   >
                     <Play className="size-5" aria-hidden="true" />
                     {TEAM_LABELS.A}
-                  </Button>
-                  <Button
-                    size="lg"
-                    className="h-16 rounded-2xl bg-gradient-to-b from-orange-400 to-orange-500 text-lg font-black text-orange-950 shadow-[0_6px_0_#c2410c] hover:from-orange-300"
+                  </CandyButton>
+                  <CandyButton
+                    variant="orange"
+                    size="xl"
                     onClick={() => act('letters:open_turn', { team: 'B' })}
                   >
                     <Play className="size-5" aria-hidden="true" />
                     {TEAM_LABELS.B}
-                  </Button>
+                  </CandyButton>
                 </div>
                 <HexGrid
                   layout={state.layout}
@@ -446,14 +442,14 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                     {remaining}
                   </p>
                 )}
-                <Button
-                  variant="outline"
-                  className="mt-2 gap-1.5 rounded-xl"
+                <CandyButton
+                  variant="ghost"
+                  className="mt-2 gap-1.5"
                   onClick={() => act('letters:open_turn', { team: state.activeTeam })}
                 >
                   <RotateCcw className="size-4" aria-hidden="true" />
                   إعادة فتح الدور
-                </Button>
+                </CandyButton>
               </CardContent>
             </Card>
           )}
@@ -491,22 +487,22 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                   </p>
                 )}
                 <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    size="lg"
-                    className="h-16 rounded-2xl bg-gradient-to-b from-emerald-500 to-emerald-600 text-lg font-black shadow-[0_6px_0_#065f46] hover:from-emerald-400"
+                  <CandyButton
+                    variant="emerald"
+                    size="xl"
                     onClick={() => act('letters:judge', { correct: true })}
                   >
                     <Check className="size-6" aria-hidden="true" />
                     صح (+1)
-                  </Button>
-                  <Button
-                    size="lg"
-                    className="h-16 rounded-2xl bg-gradient-to-b from-red-500 to-red-600 text-lg font-black shadow-[0_6px_0_#7f1d1d] hover:from-red-400"
+                  </CandyButton>
+                  <CandyButton
+                    variant="red"
+                    size="xl"
                     onClick={() => act('letters:judge', { correct: false })}
                   >
                     <X className="size-6" aria-hidden="true" />
                     خطأ
-                  </Button>
+                  </CandyButton>
                 </div>
               </CardContent>
             </Card>
@@ -524,9 +520,9 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                     {state.question.q}
                   </p>
                 )}
-                <Button variant="outline" className="rounded-xl" onClick={() => act('letters:cancel_round')}>
+                <CandyButton variant="ghostDanger" onClick={() => act('letters:cancel_round')}>
                   إلغاء الجولة
-                </Button>
+                </CandyButton>
               </CardContent>
             </Card>
           )}
@@ -553,14 +549,15 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                     />
                   ))}
                 </div>
-                <Button
+                <CandyButton
+                  variant="purple"
                   size="lg"
-                  className="mt-1 h-14 rounded-2xl bg-purple-700 text-lg font-black hover:bg-purple-800"
+                  className="mt-1"
                   onClick={() => act('letters:new_game')}
                 >
                   <RotateCcw className="size-5" aria-hidden="true" />
                   لعبة جديدة (لوحة وعشرات جديدة)
-                </Button>
+                </CandyButton>
               </CardContent>
             </Card>
           )}
@@ -578,14 +575,15 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
                     الجواب: {state.result.answer}
                   </p>
                 )}
-                <Button
+                <CandyButton
+                  variant="purple"
                   size="lg"
-                  className="mt-1 h-14 rounded-2xl bg-purple-700 text-lg font-black hover:bg-purple-800"
+                  className="mt-1"
                   onClick={() => act('letters:next')}
                 >
                   <RotateCcw className="size-5" aria-hidden="true" />
                   الجولة التالية
-                </Button>
+                </CandyButton>
               </CardContent>
             </Card>
           )}

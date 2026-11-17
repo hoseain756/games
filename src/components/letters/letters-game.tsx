@@ -6,6 +6,7 @@ import { useLettersSocket } from '@/hooks/use-letters-socket'
 import { HostConsole } from '@/components/letters/host-console'
 import { TeamScreen } from '@/components/letters/team-screen'
 import { DisplayScreen } from '@/components/letters/display-screen'
+import { CandyButton, candyClasses, type CandyVariant } from '@/components/letters/candy-button'
 import { ROLE_LABELS, type LettersRole } from '@/lib/letters-types'
 
 // ---------------------------------------------------------------------------
@@ -20,34 +21,34 @@ function parseRole(value: string | null | undefined): LettersRole | null {
 }
 
 function RoleChooser() {
-  const roles: { role: LettersRole; label: string; hint: string; icon: typeof Trophy; classes: string }[] = [
+  const roles: { role: LettersRole; label: string; hint: string; icon: typeof Trophy; variant: CandyVariant }[] = [
     {
       role: 'host',
       label: 'المقدم',
       hint: 'يدير الجلسة ويفتح الدور ويحكم على الإجابات',
       icon: Sparkles,
-      classes: 'bg-gradient-to-b from-purple-600 to-purple-800',
+      variant: 'purple',
     },
     {
       role: 'teamA',
       label: 'الفريق الأول',
       hint: 'شاشة الفريق الأول مع الزر الضخم',
       icon: Trophy,
-      classes: 'bg-gradient-to-b from-green-400 to-green-500 text-white',
+      variant: 'green',
     },
     {
       role: 'teamB',
       label: 'الفريق الثاني',
       hint: 'شاشة الفريق الثاني مع الزر الضخم',
       icon: Trophy,
-      classes: 'bg-gradient-to-b from-orange-400 to-orange-500 text-orange-950',
+      variant: 'orange',
     },
     {
       role: 'display',
       label: 'شاشة العرض',
       hint: 'تُعرض على التلفاز للجميع مع النتائج',
       icon: MonitorPlay,
-      classes: 'bg-gradient-to-b from-purple-500 to-purple-700',
+      variant: 'cyan',
     },
   ]
 
@@ -69,9 +70,9 @@ function RoleChooser() {
           <a
             key={item.role}
             href={`/?game=huruf&role=${item.role}`}
-            className={`${item.classes} flex flex-col items-center gap-1 rounded-3xl p-5 text-center text-white shadow-lg transition-transform hover:scale-[1.03] active:scale-95`}
+            className={candyClasses(item.variant, 'md', 4, 'h-auto flex-col gap-1 rounded-3xl p-5 text-center [&_svg:not([class*=\'size-\'])]:size-8')}
           >
-            <item.icon className="size-8" aria-hidden="true" />
+            <item.icon aria-hidden="true" />
             <span className="text-lg font-black">{item.label}</span>
             <span className="text-xs font-bold opacity-90">{item.hint}</span>
           </a>
@@ -119,14 +120,15 @@ function LettersScreen({ role }: { role: LettersRole }) {
                 ? 'الاتصال تم لكن ما وصلتنا بيانات اللعبة — تأكدوا من الشبكة وجربوا مرة ثانية.'
                 : 'تأكدوا من اتصال الجوال بالشبكة، أو أن الخادم يعاد تشغيله الآن.'}
             </p>
-            <button
-              type="button"
+            <CandyButton
+              variant="purple"
+              size="lg"
+              className="h-12 text-base"
               onClick={() => window.location.reload()}
-              className="flex h-12 items-center gap-2 rounded-2xl bg-purple-700 px-6 text-base font-black text-white shadow-[0_4px_0_#4c1d95] transition-transform active:scale-95"
             >
               <RefreshCw className="size-5" aria-hidden="true" />
               إعادة المحاولة
-            </button>
+            </CandyButton>
             <p className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
               <span className="inline-block size-2 animate-pulse rounded-full bg-purple-400" aria-hidden="true" />
               ما زلنا نحاول الاتصال تلقائياً...
