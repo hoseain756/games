@@ -81,7 +81,7 @@ export function DisplayScreen({ state, remaining }: DisplayScreenProps) {
           </span>
         </div>
         <h1 className="leading-none">
-          <HurufLogo className="h-[clamp(3.75rem,11vmin,6.5rem)] w-auto drop-shadow-[0_4px_0_rgba(124,58,173,0.18)]" />
+          <HurufLogo className="h-[clamp(3.75rem,11vmin,6.5rem)] w-auto" />
         </h1>
       </header>
 

@@ -96,7 +96,7 @@ export function AppHome() {
               {game.badge}
             </span>
             {game.logo ? (
-              <HurufLogo className="mt-1 h-24 w-auto drop-shadow-[0_3px_0_rgba(124,58,173,0.18)]" />
+              <HurufLogo className="mt-1 h-28 w-auto" />
             ) : (
               <h2 className="text-2xl font-black text-purple-950">{game.title}</h2>
             )}

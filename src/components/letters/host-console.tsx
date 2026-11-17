@@ -219,7 +219,7 @@ export function HostConsole({ state, connected, remaining, act }: HostConsolePro
       {/* Session header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <HurufLogo className="h-10 w-auto drop-shadow-[0_3px_0_rgba(124,58,173,0.18)]" />
+          <HurufLogo className="h-11 w-auto" />
           <span className="rounded-full border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground">
             الجولة {Math.max(state.roundNumber, 0)}
           </span>

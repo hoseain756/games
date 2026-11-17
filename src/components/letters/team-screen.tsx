@@ -188,7 +188,7 @@ export function TeamScreen({ state, team, remaining, onPick, onReady, onBuzz }: 
           />
           <span>{TEAM_LABELS[team]}</span>
         </div>
-        <HurufLogo className="h-11 w-auto drop-shadow-[0_3px_0_rgba(124,58,173,0.18)]" />
+        <HurufLogo className="h-12 w-auto" />
       </header>
 
       {/* Team mission on the connection board */}
