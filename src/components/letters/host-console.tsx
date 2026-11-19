@@ -196,12 +196,23 @@ function QrCard({
   teams: LettersState['teams']
 }) {
   const [copied, setCopied] = useState(false)
+  // Build the ABSOLUTE join URL in the browser, never on the server: behind
+  // the sandbox/edge gateways the request arrives over plain HTTP, so a
+  // server-resolved URL gets an http:// scheme the public HTTPS edge never
+  // answers — scanned phones then spin forever. window.location always
+  // carries the real, working origin (https on hosted platforms).
+  const [origin, setOrigin] = useState('')
+  useEffect(() => {
+    const id = window.setTimeout(() => setOrigin(window.location.origin), 0)
+    return () => window.clearTimeout(id)
+  }, [])
   const label = item.team ? teamLabel(teams, item.team) : item.label
   const target = `/?game=huruf&role=${item.role}&code=${joinCode}`
+  const fullTarget = origin ? `${origin}${target}` : ''
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${target}`)
+      await navigator.clipboard.writeText(fullTarget || `${window.location.origin}${target}`)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -225,11 +236,15 @@ function QrCard({
         )}
       </button>
       <div className={`rounded-2xl bg-white p-2 shadow-sm ring-4 ${item.tile}`}>
-        <img
-          src={`/api/qr?text=${encodeURIComponent(target)}`}
-          alt={`رمز QR لدخول ${label}`}
-          className="size-24 sm:size-28 lg:size-32"
-        />
+        {fullTarget ? (
+          <img
+            src={`/api/qr?text=${encodeURIComponent(fullTarget)}`}
+            alt={`رمز QR لدخول ${label}`}
+            className="size-24 sm:size-28 lg:size-32"
+          />
+        ) : (
+          <div className="size-24 sm:size-28 lg:size-32" aria-hidden="true" />
+        )}
       </div>
       <span
         className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-extrabold sm:text-sm ${item.chip}`}
