@@ -246,6 +246,14 @@ function QrCard({
           <div className="size-24 sm:size-28 lg:size-32" aria-hidden="true" />
         )}
       </div>
+      {fullTarget && (
+        <span
+          dir="ltr"
+          className="max-w-full truncate px-1 text-[10px] font-bold text-muted-foreground/80 sm:text-[11px]"
+        >
+          {fullTarget}
+        </span>
+      )}
       <span
         className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-extrabold sm:text-sm ${item.chip}`}
       >
